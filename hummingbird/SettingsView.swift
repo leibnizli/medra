@@ -41,9 +41,29 @@ struct SettingsView: View {
                     
                     // 自动模式：显示说明
                     if settings.bitrateControlMode == .auto {
-                        Text("根据视频分辨率自动计算最佳比特率，确保文件变小")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("根据视频分辨率自动计算最佳比特率，确保文件变小")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("参考范围：")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text("720p: ~1.8 Mbps")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text("1080p: ~3.9 Mbps")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text("1440p/竖屏: ~4-5.5 Mbps")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text("4K: ~8.3 Mbps")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
                     
                     // 手动模式：显示比特率滑块

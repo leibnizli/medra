@@ -251,6 +251,14 @@ struct CompressionView: View {
                             if let data = try? Data(contentsOf: url) {
                                 item.compressedSize = data.count
                             }
+                            
+                            // 使用原始分辨率计算比特率（从 item.originalResolution）
+                            if let originalResolution = item.originalResolution {
+                                let bitrateBps = settings.calculateBitrate(for: originalResolution)
+                                item.usedBitrate = Double(bitrateBps) / 1_000_000.0 // 转换为 Mbps
+                                print("✅ 设置比特率: \(item.usedBitrate ?? 0) Mbps (分辨率: \(originalResolution))")
+                            }
+                            
                             let asset = AVURLAsset(url: url)
                             if let videoTrack = asset.tracks(withMediaType: .video).first {
                                 let size = videoTrack.naturalSize

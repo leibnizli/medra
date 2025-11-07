@@ -70,17 +70,23 @@ class CompressionSettings: ObservableObject {
             // 根据分辨率自动计算合理的比特率
             let pixelCount = videoSize.width * videoSize.height
             
-            // 使用更保守的比特率计算，确保文件变小
+            // 根据分辨率自动计算合理的比特率，确保文件变小但保持质量
             // 720p (1280x720 = 921,600) -> ~2 Mbps
             // 1080p (1920x1080 = 2,073,600) -> ~4 Mbps
             // 4K (3840x2160 = 8,294,400) -> ~8 Mbps
             let bitsPerPixel: Double
             if pixelCount <= 1_000_000 {  // <= 720p
-                bitsPerPixel = 0.08
+                // 720p: 2 Mbps / 921,600 ≈ 2.17 bits/pixel，使用 2.0 确保压缩
+                bitsPerPixel = 2.0
             } else if pixelCount <= 2_500_000 {  // <= 1080p
-                bitsPerPixel = 0.07
-            } else {  // > 1080p
-                bitsPerPixel = 0.06
+                // 1080p: 4 Mbps / 2,073,600 ≈ 1.93 bits/pixel，使用 1.9 确保压缩
+                bitsPerPixel = 1.9
+            } else if pixelCount <= 5_000_000 {  // <= 1440p 或竖屏 1080p+
+                // 1440p 或竖屏高分辨率: 使用 1.5 bits/pixel
+                bitsPerPixel = 1.5
+            } else {  // > 1440p (4K等)
+                // 4K: 8 Mbps / 8,294,400 ≈ 0.96 bits/pixel，使用 1.0 确保压缩
+                bitsPerPixel = 1.0
             }
             
             return Int(pixelCount * bitsPerPixel)
