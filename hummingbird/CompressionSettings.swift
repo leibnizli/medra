@@ -48,37 +48,11 @@ enum ImageResolution: String, CaseIterable, Identifiable {
 
 // MARK: - 压缩设置
 class CompressionSettings: ObservableObject {
-    // 图片设置
-    @Published var imageResolution: ImageResolution = .original
-    @Published var imageMaxWidth: Int = 0  // 0 表示不限制
-    @Published var imageMaxHeight: Int = 0  // 0 表示不限制
+    // 图片设置 - 只保留质量设置
     @Published var imageQuality: Double = 0.8
     
-    // 视频设置
+    // 视频设置 - 只保留质量设置
     @Published var videoQuality: Double = 0.6
-    @Published var videoResolution: VideoResolution = .original
-    @Published var customWidth: String = "1920"
-    @Published var customHeight: String = "1080"
-    
-    // 计算属性：获取实际使用的图片最大宽度
-    var actualImageMaxWidth: Int {
-        if imageResolution == .custom {
-            return imageMaxWidth
-        } else if let size = imageResolution.size {
-            return size.width
-        }
-        return 0
-    }
-    
-    // 计算属性：获取实际使用的图片最大高度
-    var actualImageMaxHeight: Int {
-        if imageResolution == .custom {
-            return imageMaxHeight
-        } else if let size = imageResolution.size {
-            return size.height
-        }
-        return 0
-    }
 }
 
 // MARK: - 视频分辨率

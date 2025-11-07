@@ -11,10 +11,11 @@ import PhotosUI
 import Combine
 
 enum CompressionStatus {
-    case pending      // 等待压缩
+    case pending      // 等待处理
     case compressing  // 压缩中
-    case completed    // 压缩完成
-    case failed       // 压缩失败
+    case processing   // 处理中（用于分辨率调整）
+    case completed    // 完成
+    case failed       // 失败
 }
 
 @MainActor
@@ -31,6 +32,10 @@ class MediaItem: Identifiable, ObservableObject {
     @Published var progress: Float = 0
     @Published var errorMessage: String?
     @Published var thumbnailImage: UIImage?
+    
+    // 分辨率信息
+    @Published var originalResolution: CGSize?
+    @Published var compressedResolution: CGSize?
     
     // 临时文件URL（用于视频）
     var sourceVideoURL: URL?
@@ -57,5 +62,11 @@ class MediaItem: Identifiable, ObservableObject {
         let kb = Double(bytes) / 1024.0
         if kb < 1024 { return String(format: "%.0f KB", kb) }
         return String(format: "%.2f MB", kb / 1024.0)
+    }
+    
+    // 格式化分辨率
+    func formatResolution(_ size: CGSize?) -> String {
+        guard let size = size else { return "未知" }
+        return "\(Int(size.width))×\(Int(size.height))"
     }
 }

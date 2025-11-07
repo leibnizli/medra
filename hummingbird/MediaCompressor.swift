@@ -18,20 +18,9 @@ final class MediaCompressor {
     static func compressImage(_ data: Data, settings: CompressionSettings) throws -> Data {
         guard var image = UIImage(data: data) else { throw MediaCompressionError.imageDecodeFailed }
         
-        // 根据设置调整尺寸（在修正方向之前，使用原始尺寸）
-        let maxWidth = settings.actualImageMaxWidth
-        let maxHeight = settings.actualImageMaxHeight
-        print("压缩设置 - maxWidth:\(maxWidth), maxHeight:\(maxHeight)")
-        print("原始图片尺寸 - width:\(image.size.width), height:\(image.size.height)")
-        
-        if maxWidth > 0 || maxHeight > 0 {
-            image = resizeImage(image, maxWidth: maxWidth, maxHeight: maxHeight)
-            print("调整后尺寸 - width:\(image.size.width), height:\(image.size.height)")
-        }
-        
-        // 修正图片方向，防止压缩后旋转（在调整尺寸之后）
+        // 修正图片方向，防止压缩后旋转
         image = image.fixOrientation()
-        print("修正方向后尺寸 - width:\(image.size.width), height:\(image.size.height)")
+        print("原始图片尺寸 - width:\(image.size.width), height:\(image.size.height)")
 
         // 检测原始图片格式，保持原有格式
         let format: ImageFormat = detectImageFormat(data: data)
@@ -139,6 +128,7 @@ final class MediaCompressor {
         
         // 根据质量选择预设
         let preset = qualityToPreset(settings.videoQuality)
+        print("使用的导出预设: \(preset)")
         
         guard let exportSession = AVAssetExportSession(asset: asset, presetName: preset) else {
             completion(.failure(MediaCompressionError.videoExportFailed))
@@ -151,11 +141,6 @@ final class MediaCompressor {
         exportSession.outputURL = outputURL
         exportSession.outputFileType = outputFileType
         exportSession.shouldOptimizeForNetworkUse = true
-        
-        // 设置视频分辨率
-        if let targetSize = getTargetVideoSize(settings: settings, asset: asset) {
-            exportSession.videoComposition = createVideoComposition(asset: asset, targetSize: targetSize)
-        }
 
         let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { t in
             progressHandler(exportSession.progress)
@@ -187,52 +172,6 @@ final class MediaCompressor {
         default:
             return AVAssetExportPresetHighestQuality
         }
-    }
-    
-    private static func getTargetVideoSize(settings: CompressionSettings, asset: AVAsset) -> CGSize? {
-        switch settings.videoResolution {
-        case .original:
-            return nil
-        case .custom:
-            if let width = Int(settings.customWidth), let height = Int(settings.customHeight), width > 0, height > 0 {
-                return CGSize(width: width, height: height)
-            }
-            return nil
-        default:
-            return settings.videoResolution.size
-        }
-    }
-    
-    private static func createVideoComposition(asset: AVAsset, targetSize: CGSize) -> AVMutableVideoComposition {
-        guard let videoTrack = asset.tracks(withMediaType: .video).first else {
-            return AVMutableVideoComposition()
-        }
-        
-        let composition = AVMutableVideoComposition()
-        composition.renderSize = targetSize
-        composition.frameDuration = CMTime(value: 1, timescale: 30)
-        
-        let instruction = AVMutableVideoCompositionInstruction()
-        instruction.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
-        
-        let transformer = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
-        
-        let videoSize = videoTrack.naturalSize
-        let transform = videoTrack.preferredTransform
-        
-        // 计算缩放比例
-        let scaleX = targetSize.width / videoSize.width
-        let scaleY = targetSize.height / videoSize.height
-        let scale = min(scaleX, scaleY)
-        
-        var finalTransform = transform
-        finalTransform = finalTransform.scaledBy(x: scale, y: scale)
-        
-        transformer.setTransform(finalTransform, at: .zero)
-        instruction.layerInstructions = [transformer]
-        composition.instructions = [instruction]
-        
-        return composition
     }
 }
 
