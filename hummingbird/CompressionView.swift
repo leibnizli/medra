@@ -104,6 +104,19 @@ struct CompressionView: View {
                     mediaItem.originalData = data
                     mediaItem.originalSize = data.count
                     
+                    // 检测原始图片格式（从 PhotosPickerItem 的 contentType 检测）
+                    if !isVideo {
+                        // 检查是否支持 HEIC 格式
+                        let isHEIC = item.supportedContentTypes.contains { contentType in
+                            contentType.identifier == "public.heic" || 
+                            contentType.identifier == "public.heif" ||
+                            contentType.conforms(to: .heic) ||
+                            contentType.conforms(to: .heif)
+                        }
+                        mediaItem.originalImageFormat = isHEIC ? .heic : .jpeg
+                        print("📋 [格式检测] PhotosPickerItem 格式: \(isHEIC ? "HEIC" : "JPEG")")
+                    }
+                    
                     if isVideo {
                         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
                             .appendingPathComponent("source_\(mediaItem.id.uuidString)")
@@ -220,14 +233,26 @@ struct CompressionView: View {
         }
         
         do {
+            // 根据设置决定输出格式
+            let outputFormat: ImageFormat
+            if settings.preferHEIC && item.originalImageFormat == .heic {
+                // 开启 HEIC 优先，且原图是 HEIC，保持 HEIC
+                outputFormat = .heic
+            } else {
+                // 否则使用 JPEG (MozJPEG)
+                outputFormat = .jpeg
+            }
+            
             let compressed = try MediaCompressor.compressImage(
                 originalData,
-                settings: settings
+                settings: settings,
+                preferredFormat: outputFormat
             )
             
             await MainActor.run {
                 item.compressedData = compressed
                 item.compressedSize = compressed.count
+                item.outputImageFormat = outputFormat  // 记录输出格式
                 if let image = UIImage(data: compressed) {
                     item.compressedResolution = image.size
                 }

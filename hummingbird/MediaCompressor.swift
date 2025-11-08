@@ -15,7 +15,7 @@ enum ImageFormat {
 }
 
 final class MediaCompressor {
-    static func compressImage(_ data: Data, settings: CompressionSettings) throws -> Data {
+    static func compressImage(_ data: Data, settings: CompressionSettings, preferredFormat: ImageFormat? = nil) throws -> Data {
         guard var image = UIImage(data: data) else { throw MediaCompressionError.imageDecodeFailed }
         
         // 修正图片方向，防止压缩后旋转
@@ -23,23 +23,38 @@ final class MediaCompressor {
         print("原始图片尺寸 - width:\(image.size.width), height:\(image.size.height)")
 
         // 检测原始图片格式，保持原有格式
-        let format: ImageFormat = detectImageFormat(data: data)
+        // 如果提供了 preferredFormat，优先使用它；否则从数据检测
+        let format: ImageFormat
+        if let preferredFormat = preferredFormat {
+            format = preferredFormat
+            print("📋 [格式检测] 使用预设格式: \(preferredFormat == .heic ? "HEIC" : "JPEG")")
+        } else {
+            format = detectImageFormat(data: data)
+        }
         return encode(image: image, quality: CGFloat(settings.imageQuality), format: format)
     }
     
     private static func detectImageFormat(data: Data) -> ImageFormat {
         // 检查文件头来判断格式
-        guard data.count > 12 else { return .jpeg }
+        guard data.count > 12 else {
+            print("📋 [格式检测] 数据太小，默认使用 JPEG")
+            return .jpeg
+        }
         
         let bytes = [UInt8](data.prefix(12))
+        let hexString = bytes.prefix(12).map { String(format: "%02X", $0) }.joined(separator: " ")
+        print("📋 [格式检测] 文件头 (前12字节): \(hexString)")
         
         // HEIC/HEIF 格式检测 (ftyp box)
         if bytes.count >= 12 {
             let ftypSignature = String(bytes: bytes[4..<8], encoding: .ascii)
+            print("📋 [格式检测] ftyp 签名: \(ftypSignature ?? "nil")")
             if ftypSignature == "ftyp" {
                 let brand = String(bytes: bytes[8..<12], encoding: .ascii)
+                print("📋 [格式检测] brand: \(brand ?? "nil")")
                 if brand?.hasPrefix("heic") == true || brand?.hasPrefix("heix") == true ||
                    brand?.hasPrefix("hevc") == true || brand?.hasPrefix("mif1") == true {
+                    print("✅ [格式检测] 检测到 HEIC 格式")
                     return .heic
                 }
             }
@@ -47,10 +62,12 @@ final class MediaCompressor {
         
         // JPEG 格式检测 (FF D8 FF)
         if bytes.count >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF {
+            print("✅ [格式检测] 检测到 JPEG 格式")
             return .jpeg
         }
         
         // 默认使用 JPEG
+        print("⚠️ [格式检测] 未识别格式，默认使用 JPEG")
         return .jpeg
     }
 
@@ -77,17 +94,34 @@ final class MediaCompressor {
             }
         case .heic:
             if #available(iOS 11.0, *) {
+                print("🔄 [HEIC] 开始 HEIC 压缩 - 质量: \(quality)")
                 let mutableData = NSMutableData()
-                guard let imageDestination = CGImageDestinationCreateWithData(mutableData, AVFileType.heic as CFString, 1, nil),
-                      let cgImage = image.cgImage else {
-                    return image.jpegData(compressionQuality: max(0.01, min(1.0, quality))) ?? Data()
+                
+                guard let cgImage = image.cgImage else {
+                    print("❌ [HEIC] 错误: cgImage 为 nil")
+                    return Data()
                 }
+                
+                guard let imageDestination = CGImageDestinationCreateWithData(mutableData, AVFileType.heic as CFString, 1, nil) else {
+                    print("❌ [HEIC] 错误: 无法创建 CGImageDestination")
+                    return Data()
+                }
+                
                 let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: quality]
                 CGImageDestinationAddImage(imageDestination, cgImage, options as CFDictionary)
-                CGImageDestinationFinalize(imageDestination)
-                return mutableData as Data
+                
+                let success = CGImageDestinationFinalize(imageDestination)
+                if success {
+                    let heicData = mutableData as Data
+                    print("✅ [HEIC] 压缩成功 - 大小: \(heicData.count) bytes")
+                    return heicData
+                } else {
+                    print("❌ [HEIC] 错误: CGImageDestinationFinalize 失败")
+                    return Data()
+                }
             } else {
-                return image.jpegData(compressionQuality: max(0.01, min(1.0, quality))) ?? Data()
+                print("⚠️ [HEIC] iOS 版本低于 11.0，不支持 HEIC")
+                return Data()
             }
         }
     }

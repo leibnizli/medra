@@ -24,10 +24,12 @@ struct SettingsView: View {
                         }
                         Slider(value: $settings.imageQuality, in: 0.1...1.0, step: 0.05)
                     }
+                    
+                    Toggle("优先使用 HEIC", isOn: $settings.preferHEIC)
                 } header: {
                     Text("图片压缩")
                 } footer: {
-                    Text("质量越高文件越大，保持原始分辨率")
+                    Text("质量越高文件越大，保持原始分辨率。开启 HEIC 后，HEIC 图片将保持 HEIC 格式；关闭后将使用 MozJPEG 转换为 JPEG 格式")
                 }
                 
                 Section {

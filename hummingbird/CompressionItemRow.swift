@@ -183,9 +183,12 @@ struct CompressionItemRow: View {
                     if item.isVideo, let url = item.compressedVideoURL {
                         PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
                     } else if let data = item.compressedData {
+                        // 根据输出格式确定文件扩展名
+                        let fileExtension = item.outputImageFormat == .heic ? "heic" : "jpg"
+                        
                         // 将压缩后的数据写入临时文件
                         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
-                            .appendingPathComponent("compressed_\(UUID().uuidString).jpg")
+                            .appendingPathComponent("compressed_\(UUID().uuidString).\(fileExtension)")
                         try? data.write(to: tempURL)
                         
                         // 使用文件 URL 保存，保持原始压缩数据

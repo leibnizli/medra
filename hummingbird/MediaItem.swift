@@ -40,6 +40,12 @@ class MediaItem: Identifiable, ObservableObject {
     // 视频压缩使用的比特率（Mbps，仅视频有效）
     @Published var usedBitrate: Double?
     
+    // 原始图片格式（从 PhotosPickerItem 检测）
+    var originalImageFormat: ImageFormat?
+    
+    // 输出图片格式（压缩后的格式）
+    var outputImageFormat: ImageFormat?
+    
     // 临时文件URL（用于视频）
     var sourceVideoURL: URL?
     var compressedVideoURL: URL?

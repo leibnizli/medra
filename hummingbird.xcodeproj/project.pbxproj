@@ -122,6 +122,9 @@
 			);
 			mainGroup = 84E0DCAB2EBA3266006AD34D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8405EA8B2EBF2BB700D71683 /* XCRemoteSwiftPackageReference "pngquant" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 84E0DCB52EBA3266006AD34D /* Products */;
 			projectDirPath = "";
@@ -425,6 +428,17 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8405EA8B2EBF2BB700D71683 /* XCRemoteSwiftPackageReference "pngquant" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/awxkee/pngquant.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.5;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 	};
 	rootObject = 84E0DCAC2EBA3266006AD34D /* Project object */;
 }
