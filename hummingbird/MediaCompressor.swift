@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import AVFoundation
 import Combine
+import pngquant
 
 enum MediaCompressionError: Error {
     case imageDecodeFailed
@@ -82,14 +83,25 @@ final class MediaCompressor {
     static func encode(image: UIImage, quality: CGFloat, format: ImageFormat) -> Data {
         switch format {
         case .png:
-            // PNG 无损格式，不压缩
-            print("🔄 [PNG] 使用 PNG 无损编码")
-            if let pngData = image.pngData() {
-                print("✅ [PNG] 编码成功 - 大小: \(pngData.count) bytes")
-                return pngData
-            } else {
-                print("❌ [PNG] 编码失败")
-                return Data()
+            // PNG 使用 pngquant 压缩
+            print("🔄 [PNG] 使用 PNGQuant 压缩 - 质量: \(quality)")
+            
+            // 先获取原始 PNG 数据用于对比
+            let originalPNGData = image.pngData()
+            let originalSize = originalPNGData?.count ?? 0
+            
+            do {
+                // 使用 pngquant 的 UIImage 扩展方法直接压缩
+                let compressedData = try image.pngQuantData()
+                let compressedSize = compressedData.count
+                let compressionRatio = originalSize > 0 ? Double(compressedSize) / Double(originalSize) : 0.0
+                
+                print("✅ [PNGQuant] 压缩成功 - 质量: \(quality), 原始大小: \(originalSize) bytes, 压缩后: \(compressedSize) bytes, 压缩比: \(String(format: "%.2f%%", compressionRatio * 100))")
+                
+                return compressedData
+            } catch {
+                print("⚠️ [PNGQuant] 压缩失败: \(error.localizedDescription)，使用原始 PNG")
+                return originalPNGData ?? Data()
             }
             
         case .jpeg:
@@ -144,6 +156,7 @@ final class MediaCompressor {
             }
         }
     }
+
 
     static func compressVideo(
         at sourceURL: URL,
