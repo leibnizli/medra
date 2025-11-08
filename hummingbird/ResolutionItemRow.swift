@@ -65,25 +65,13 @@ struct ResolutionItemRow: View {
                     // 分辨率信息
                     if item.status == .completed {
                         VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("原始分辨率: \(item.formatResolution(item.originalResolution))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Text("新分辨率: \(item.formatResolution(item.compressedResolution))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                            Text("分辨率: \(item.formatResolution(item.originalResolution)) → \(item.formatResolution(item.compressedResolution))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             
-                            HStack {
-                                Text("原始大小: \(item.formatBytes(item.originalSize))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Text("新大小: \(item.formatBytes(item.compressedSize))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                            Text("大小: \(item.formatBytes(item.originalSize)) → \(item.formatBytes(item.compressedSize))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     } else {
                         VStack(alignment: .leading, spacing: 2) {

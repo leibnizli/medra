@@ -65,23 +65,14 @@ struct CompressionItemRow: View {
                     // 文件大小和压缩信息
                     if item.status == .completed {
                         VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("原始: \(item.formatBytes(item.originalSize))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Text("压缩后: \(item.formatBytes(item.compressedSize))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
+                            Text("大小: \(item.formatBytes(item.originalSize)) → \(item.formatBytes(item.compressedSize))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             
                             if let resolution = item.originalResolution {
-                                HStack {
-                                    Text("分辨率: \(item.formatResolution(resolution))")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    Spacer()
-                                }
+                                Text("分辨率: \(item.formatResolution(resolution))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
                             
                             // 显示视频比特率（仅视频）

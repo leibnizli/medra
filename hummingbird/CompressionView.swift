@@ -57,7 +57,7 @@ struct CompressionView: View {
                         ForEach(mediaItems) { item in
                             CompressionItemRow(item: item)
                                 .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                                .listRowSeparator(.hidden)
+                                .listRowSeparator(.visible)
                         }
                         .onDelete { indexSet in
                             withAnimation {

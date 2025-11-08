@@ -14,111 +14,105 @@ struct FormatItemRow: View {
     @State private var toastMessage = ""
     
     var body: some View {
-        HStack(spacing: 12) {
-            // 缩略图
-            if let thumbnail = item.thumbnailImage {
-                Image(uiImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 60, height: 60)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: 60, height: 60)
-                    .overlay {
-                        ProgressView()
-                    }
-            }
-            
-            // 信息区域
-            VStack(alignment: .leading, spacing: 4) {
-                // 文件类型和格式
-                HStack(spacing: 6) {
-                    Image(systemName: item.isVideo ? "video.fill" : "photo.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                // 缩略图
+                ZStack {
+                    Color.gray.opacity(0.2)
                     
-                    if let originalFormat = item.originalImageFormat {
-                        Text(originalFormat.rawValue.uppercased())
-                            .font(.caption)
+                    if let thumbnail = item.thumbnailImage {
+                        Image(uiImage: thumbnail)
+                            .resizable()
+                            .scaledToFit()
+                    } else {
+                        Image(systemName: item.isVideo ? "video.fill" : "photo.fill")
+                            .font(.title)
                             .foregroundStyle(.secondary)
-                    } else if item.isVideo {
-                        Text(item.fileExtension.uppercased())
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    if item.status == .completed {
-                        if let outputFormat = item.outputImageFormat {
-                            Image(systemName: "arrow.right")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(outputFormat.rawValue.uppercased())
-                                .font(.caption)
-                                .foregroundStyle(.blue)
-                        } else if let outputVideoFormat = item.outputVideoFormat {
-                            Image(systemName: "arrow.right")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(outputVideoFormat.uppercased())
-                                .font(.caption)
-                                .foregroundStyle(.blue)
-                        }
                     }
                 }
+                .frame(width: 80, height: 80)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
                 
-                // 原始大小
-                Text("原始: \(item.formatBytes(item.originalSize))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                
-                // 转换后大小
-                if item.status == .completed {
-                    HStack(spacing: 4) {
-                        Text("转换后: \(item.formatBytes(item.compressedSize))")
+                // 信息区域
+                VStack(alignment: .leading, spacing: 4) {
+                    // 文件类型和格式
+                    HStack(spacing: 6) {
+                        Image(systemName: item.isVideo ? "video.fill" : "photo.fill")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         
-                        let diff = item.compressedSize - item.originalSize
-                        if diff > 0 {
-                            Text("(+\(item.formatBytes(diff)))")
+                        if let originalFormat = item.originalImageFormat {
+                            Text(originalFormat.rawValue.uppercased())
                                 .font(.caption)
-                                .foregroundStyle(.orange)
-                        } else if diff < 0 {
-                            Text("(\(item.formatBytes(diff)))")
+                                .foregroundStyle(.secondary)
+                        } else if item.isVideo {
+                            Text(item.fileExtension.uppercased())
                                 .font(.caption)
-                                .foregroundStyle(.green)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        if item.status == .completed {
+                            if let outputFormat = item.outputImageFormat {
+                                Image(systemName: "arrow.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text(outputFormat.rawValue.uppercased())
+                                    .font(.caption)
+                                    .foregroundStyle(.blue)
+                            } else if let outputVideoFormat = item.outputVideoFormat {
+                                Image(systemName: "arrow.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text(outputVideoFormat.uppercased())
+                                    .font(.caption)
+                                    .foregroundStyle(.blue)
+                            }
                         }
                     }
+                    
+                    // 大小信息
+                    if item.status == .completed {
+                        HStack(spacing: 4) {
+                            Text("大小: \(item.formatBytes(item.originalSize)) → \(item.formatBytes(item.compressedSize))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            let diff = item.compressedSize - item.originalSize
+                            if diff > 0 {
+                                Text("(+\(item.formatBytes(diff)))")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            } else if diff < 0 {
+                                Text("(\(item.formatBytes(diff)))")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                    } else {
+                        Text("大小: \(item.formatBytes(item.originalSize))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
+                    // 状态信息
+                    statusView
                 }
-                
-                // 状态信息
-                statusView
             }
-            
-            Spacer()
             
             // 保存按钮
             if item.status == .completed {
-                Button(action: {
+                Button(action: { 
                     Task { await saveToPhotos() }
                 }) {
-                    Image(systemName: "square.and.arrow.down")
-                        .font(.title3)
-                        .foregroundStyle(.blue)
+                    Label("保存到相册", systemImage: "square.and.arrow.down")
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bordered)
             }
         }
         .padding(.vertical, 8)
-        .overlay(alignment: .top) {
-            if showingToast {
-                ToastView(message: toastMessage)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .zIndex(1)
-            }
-        }
+        .toast(isShowing: $showingToast, message: toastMessage)
     }
     
     @ViewBuilder
