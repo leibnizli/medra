@@ -38,10 +38,20 @@ struct SettingsView: View {
                         }
                         Slider(value: $settings.jpegQuality, in: 0.1...1.0, step: 0.05)
                     }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("WebP 质量")
+                            Spacer()
+                            Text("\(Int(settings.webpQuality * 100))%")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $settings.webpQuality, in: 0.1...1.0, step: 0.05)
+                    }
                 } header: {
                     Text("图片压缩")
                 } footer: {
-                    Text("质量越高文件越大，保持原始分辨率。开启 HEIC 后，HEIC 图片将保持 HEIC 格式；关闭后将使用 MozJPEG 转换为 JPEG 格式。如果压缩后文件反而变大，会自动保留原图")
+                    Text("质量越高文件越大，保持原始分辨率。开启 HEIC 后，HEIC 图片将保持 HEIC 格式；关闭后将使用 MozJPEG 转换为 JPEG 格式。WebP 格式会保持原格式压缩。如果压缩后文件反而变大，会自动保留原图")
                 }
                 
                 Section {

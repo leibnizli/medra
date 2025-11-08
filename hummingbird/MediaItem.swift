@@ -32,6 +32,7 @@ class MediaItem: Identifiable, ObservableObject {
     @Published var progress: Float = 0
     @Published var errorMessage: String?
     @Published var thumbnailImage: UIImage?
+    @Published var fileExtension: String = ""
     
     // 分辨率信息
     @Published var originalResolution: CGSize?

@@ -3,6 +3,7 @@ use_frameworks!
 
 target 'hummingbird' do
   pod 'mozjpeg', '~> 3.3'
+  pod 'SDWebImageWebPCoder', '~> 0.14.6'
 end
 
 post_install do |installer|

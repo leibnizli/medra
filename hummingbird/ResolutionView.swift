@@ -9,6 +9,7 @@ import SwiftUI
 import PhotosUI
 import AVFoundation
 import Photos
+import SDWebImageWebPCoder
 
 struct ResolutionView: View {
     @State private var selectedItems: [PhotosPickerItem] = []
@@ -141,20 +142,49 @@ struct ResolutionView: View {
                             contentType.conforms(to: .heic) ||
                             contentType.conforms(to: .heif)
                         }
+                        let isWebP = item.supportedContentTypes.contains { contentType in
+                            contentType.identifier == "org.webmproject.webp" ||
+                            contentType.preferredMIMEType == "image/webp"
+                        }
                         
                         if isPNG {
                             mediaItem.originalImageFormat = .png
+                            mediaItem.fileExtension = "png"
                             print("📋 [分辨率-格式检测] PhotosPickerItem 格式: PNG")
                         } else if isHEIC {
                             mediaItem.originalImageFormat = .heic
+                            mediaItem.fileExtension = "heic"
                             print("📋 [分辨率-格式检测] PhotosPickerItem 格式: HEIC")
+                        } else if isWebP {
+                            mediaItem.originalImageFormat = .webp
+                            mediaItem.fileExtension = "webp"
+                            print("📋 [分辨率-格式检测] PhotosPickerItem 格式: WebP")
                         } else {
                             mediaItem.originalImageFormat = .jpeg
+                            mediaItem.fileExtension = "jpg"
                             print("📋 [分辨率-格式检测] PhotosPickerItem 格式: JPEG")
                         }
                     }
                     
                     if isVideo {
+                        // 检测视频格式
+                        let isMOV = item.supportedContentTypes.contains { contentType in
+                            contentType.identifier == "com.apple.quicktime-movie" ||
+                            contentType.conforms(to: .quickTimeMovie)
+                        }
+                        let isMP4 = item.supportedContentTypes.contains { contentType in
+                            contentType.identifier == "public.mpeg-4" ||
+                            contentType.conforms(to: .mpeg4Movie)
+                        }
+                        
+                        if isMOV {
+                            mediaItem.fileExtension = "mov"
+                        } else if isMP4 {
+                            mediaItem.fileExtension = "mp4"
+                        } else {
+                            mediaItem.fileExtension = "video"
+                        }
+                        
                         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
                             .appendingPathComponent("source_\(mediaItem.id.uuidString)")
                             .appendingPathExtension("mov")
@@ -353,6 +383,26 @@ struct ResolutionView: View {
             }
             resizedData = jpegData
             print("✅ [分辨率调整] JPEG 编码成功 - 大小: \(resizedData.count) bytes")
+            
+        case .webp:
+            // WebP 格式 - 使用 SDWebImageWebPCoder
+            let webpCoder = SDImageWebPCoder.shared
+            if let webpData = webpCoder.encodedData(with: image, format: .webP, options: [.encodeCompressionQuality: 0.9]) {
+                resizedData = webpData
+                print("✅ [分辨率调整] WebP 编码成功 - 大小: \(resizedData.count) bytes")
+            } else {
+                // WebP 编码失败，回退到 JPEG
+                print("⚠️ [分辨率调整] WebP 编码失败，回退到 JPEG")
+                guard let jpegData = image.jpegData(compressionQuality: 0.9) else {
+                    await MainActor.run {
+                        item.status = .failed
+                        item.errorMessage = "无法编码图片"
+                    }
+                    return
+                }
+                resizedData = jpegData
+                print("✅ [分辨率调整] JPEG 编码成功（WebP 回退） - 大小: \(resizedData.count) bytes")
+            }
         }
         
         await MainActor.run {

@@ -3,6 +3,7 @@ import UIKit
 import AVFoundation
 import Combine
 import pngquant
+import SDWebImageWebPCoder
 
 enum MediaCompressionError: Error {
     case imageDecodeFailed
@@ -14,6 +15,7 @@ enum ImageFormat {
     case jpeg
     case heic
     case png
+    case webp
 }
 
 final class MediaCompressor {
@@ -41,6 +43,8 @@ final class MediaCompressor {
             quality = CGFloat(settings.heicQuality)
         case .jpeg:
             quality = CGFloat(settings.jpegQuality)
+        case .webp:
+            quality = CGFloat(settings.webpQuality)
         case .png:
             quality = 0.0  // PNG 不使用质量参数
         }
@@ -87,6 +91,13 @@ final class MediaCompressor {
             return .jpeg
         }
         
+        // WebP 格式检测 (RIFF....WEBP)
+        if bytes.count >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
+           bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50 {
+            print("✅ [格式检测] 检测到 WebP 格式")
+            return .webp
+        }
+        
         // 默认使用 JPEG
         print("⚠️ [格式检测] 未识别格式，默认使用 JPEG")
         return .jpeg
@@ -94,6 +105,27 @@ final class MediaCompressor {
 
     static func encode(image: UIImage, quality: CGFloat, format: ImageFormat) -> Data {
         switch format {
+        case .webp:
+            // WebP 压缩 - 使用 SDWebImageWebPCoder
+            print("🔄 [WebP] 开始 WebP 压缩 - 质量: \(quality)")
+            
+            let webpCoder = SDImageWebPCoder.shared
+            let normalizedQuality = max(0.01, min(1.0, quality))
+            
+            // 使用 SDWebImageWebPCoder 编码
+            if let webpData = webpCoder.encodedData(with: image, format: .webP, options: [.encodeCompressionQuality: normalizedQuality]) {
+                print("✅ [WebP] 压缩成功 - 质量: \(normalizedQuality), 大小: \(webpData.count) bytes")
+                return webpData
+            } else {
+                print("⚠️ [WebP] SDWebImageWebPCoder 编码失败，回退到 JPEG")
+                // WebP 编码失败，回退到 JPEG
+                if let jpegData = image.jpegData(compressionQuality: normalizedQuality) {
+                    print("✅ [WebP->JPEG 回退] 压缩成功 - 大小: \(jpegData.count) bytes")
+                    return jpegData
+                }
+                return Data()
+            }
+            
         case .png:
             // PNG 使用 pngquant 压缩
             print("🔄 [PNG] 使用 PNGQuant 压缩")

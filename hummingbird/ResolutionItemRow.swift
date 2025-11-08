@@ -41,6 +41,21 @@ struct ResolutionItemRow: View {
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
+                        // 文件扩展名
+                        if !item.fileExtension.isEmpty {
+                            Text("·")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text(item.fileExtension.uppercased())
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.secondary.opacity(0.15))
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                        }
+                        
                         Spacer()
                         
                         // 状态标识
@@ -123,22 +138,27 @@ struct ResolutionItemRow: View {
             Label("等待中", systemImage: "clock")
                 .font(.caption)
                 .foregroundStyle(.orange)
+                .fixedSize()
         case .compressing:
             Label("压缩中", systemImage: "arrow.triangle.2.circlepath")
                 .font(.caption)
                 .foregroundStyle(.blue)
+                .fixedSize()
         case .processing:
             Label("处理中", systemImage: "arrow.triangle.2.circlepath")
                 .font(.caption)
                 .foregroundStyle(.blue)
+                .fixedSize()
         case .completed:
             Label("完成", systemImage: "checkmark.circle.fill")
                 .font(.caption)
                 .foregroundStyle(.green)
+                .fixedSize()
         case .failed:
             Label("失败", systemImage: "xmark.circle.fill")
                 .font(.caption)
                 .foregroundStyle(.red)
+                .fixedSize()
         }
     }
     

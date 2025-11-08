@@ -116,20 +116,49 @@ struct CompressionView: View {
                             contentType.conforms(to: .heic) ||
                             contentType.conforms(to: .heif)
                         }
+                        let isWebP = item.supportedContentTypes.contains { contentType in
+                            contentType.identifier == "org.webmproject.webp" ||
+                            contentType.preferredMIMEType == "image/webp"
+                        }
                         
                         if isPNG {
                             mediaItem.originalImageFormat = .png
+                            mediaItem.fileExtension = "png"
                             print("📋 [格式检测] PhotosPickerItem 格式: PNG")
                         } else if isHEIC {
                             mediaItem.originalImageFormat = .heic
+                            mediaItem.fileExtension = "heic"
                             print("📋 [格式检测] PhotosPickerItem 格式: HEIC")
+                        } else if isWebP {
+                            mediaItem.originalImageFormat = .webp
+                            mediaItem.fileExtension = "webp"
+                            print("📋 [格式检测] PhotosPickerItem 格式: WebP")
                         } else {
                             mediaItem.originalImageFormat = .jpeg
+                            mediaItem.fileExtension = "jpg"
                             print("📋 [格式检测] PhotosPickerItem 格式: JPEG")
                         }
                     }
                     
                     if isVideo {
+                        // 检测视频格式
+                        let isMOV = item.supportedContentTypes.contains { contentType in
+                            contentType.identifier == "com.apple.quicktime-movie" ||
+                            contentType.conforms(to: .quickTimeMovie)
+                        }
+                        let isMP4 = item.supportedContentTypes.contains { contentType in
+                            contentType.identifier == "public.mpeg-4" ||
+                            contentType.conforms(to: .mpeg4Movie)
+                        }
+                        
+                        if isMOV {
+                            mediaItem.fileExtension = "mov"
+                        } else if isMP4 {
+                            mediaItem.fileExtension = "mp4"
+                        } else {
+                            mediaItem.fileExtension = "video"
+                        }
+                        
                         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
                             .appendingPathComponent("source_\(mediaItem.id.uuidString)")
                             .appendingPathExtension("mov")
@@ -244,12 +273,29 @@ struct CompressionView: View {
             return
         }
         
+        // 显示压缩开始状态
+        await MainActor.run {
+            item.status = .compressing
+            item.progress = 0.1
+        }
+        
+        // 短暂延迟，让用户看到"压缩中"状态
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1秒
+        
         do {
+            // 更新进度：准备压缩
+            await MainActor.run {
+                item.progress = 0.3
+            }
+            
             // 根据设置决定输出格式
             let outputFormat: ImageFormat
             if item.originalImageFormat == .png {
-                // PNG 始终保持 PNG 格式，不压缩
+                // PNG 始终保持 PNG 格式
                 outputFormat = .png
+            } else if item.originalImageFormat == .webp {
+                // WebP 始终保持 WebP 格式
+                outputFormat = .webp
             } else if settings.preferHEIC && item.originalImageFormat == .heic {
                 // 开启 HEIC 优先，且原图是 HEIC，保持 HEIC
                 outputFormat = .heic
@@ -258,11 +304,21 @@ struct CompressionView: View {
                 outputFormat = .jpeg
             }
             
+            // 更新进度：正在压缩
+            await MainActor.run {
+                item.progress = 0.5
+            }
+            
             let compressed = try MediaCompressor.compressImage(
                 originalData,
                 settings: settings,
                 preferredFormat: outputFormat
             )
+            
+            // 更新进度：压缩完成，处理结果
+            await MainActor.run {
+                item.progress = 0.9
+            }
             
             await MainActor.run {
                 // 智能判断：如果压缩后反而变大，保留原图

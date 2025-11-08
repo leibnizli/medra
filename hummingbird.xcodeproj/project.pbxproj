@@ -338,6 +338,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XTWM4R2294;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Hummingbird;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "需要访问相册以保存压缩后的图片和视频";
@@ -379,6 +380,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XTWM4R2294;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Hummingbird;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "需要访问相册以保存压缩后的图片和视频";
