@@ -168,9 +168,22 @@ struct CompressionView: View {
     
     private func startBatchCompression() {
         isCompressing = true
-        
         Task {
-            for item in mediaItems where item.status == .pending {
+            // 重置所有项目状态，以便重新压缩
+            await MainActor.run {
+                for item in mediaItems {
+                    item.status = .pending
+                    item.progress = 0
+                    item.compressedData = nil
+                    item.compressedSize = 0
+                    item.compressedResolution = nil
+                    item.compressedVideoURL = nil
+                    item.usedBitrate = nil
+                    item.errorMessage = nil
+                }
+            }
+            
+            for item in mediaItems {
                 await compressItem(item)
             }
             await MainActor.run {
