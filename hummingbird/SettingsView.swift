@@ -15,17 +15,26 @@ struct SettingsView: View {
         NavigationView {
             Form {
                 Section {
+                    Toggle("优先使用 HEIC", isOn: $settings.preferHEIC)
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("图片质量")
+                            Text("HEIC 质量")
                             Spacer()
-                            Text("\(Int(settings.imageQuality * 100))%")
+                            Text("\(Int(settings.heicQuality * 100))%")
                                 .foregroundStyle(.secondary)
                         }
-                        Slider(value: $settings.imageQuality, in: 0.1...1.0, step: 0.05)
+                        Slider(value: $settings.heicQuality, in: 0.1...1.0, step: 0.05)
                     }
                     
-                    Toggle("优先使用 HEIC", isOn: $settings.preferHEIC)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("JPEG 质量")
+                            Spacer()
+                            Text("\(Int(settings.jpegQuality * 100))%")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $settings.jpegQuality, in: 0.1...1.0, step: 0.05)
+                    }
                 } header: {
                     Text("图片压缩")
                 } footer: {

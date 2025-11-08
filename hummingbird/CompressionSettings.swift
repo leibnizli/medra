@@ -53,7 +53,8 @@ enum BitrateControlMode: String, CaseIterable, Identifiable {
 // MARK: - 压缩设置
 class CompressionSettings: ObservableObject {
     // 图片设置
-    @Published var imageQuality: Double = 0.75
+    @Published var heicQuality: Double = 0.6  // HEIC 质量
+    @Published var jpegQuality: Double = 0.75  // JPEG 质量
     @Published var preferHEIC: Bool = false  // 优先使用 HEIC 格式
     
     // 视频设置（保持原始分辨率，调整比特率）

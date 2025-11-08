@@ -33,7 +33,19 @@ final class MediaCompressor {
         } else {
             format = detectImageFormat(data: data)
         }
-        return encode(image: image, quality: CGFloat(settings.imageQuality), format: format)
+        
+        // 根据格式选择对应的质量设置
+        let quality: CGFloat
+        switch format {
+        case .heic:
+            quality = CGFloat(settings.heicQuality)
+        case .jpeg:
+            quality = CGFloat(settings.jpegQuality)
+        case .png:
+            quality = 0.0  // PNG 不使用质量参数
+        }
+        
+        return encode(image: image, quality: quality, format: format)
     }
     
     static func detectImageFormat(data: Data) -> ImageFormat {
@@ -84,7 +96,7 @@ final class MediaCompressor {
         switch format {
         case .png:
             // PNG 使用 pngquant 压缩
-            print("🔄 [PNG] 使用 PNGQuant 压缩 - 质量: \(quality)")
+            print("🔄 [PNG] 使用 PNGQuant 压缩")
             
             // 先获取原始 PNG 数据用于对比
             let originalPNGData = image.pngData()
@@ -96,7 +108,7 @@ final class MediaCompressor {
                 let compressedSize = compressedData.count
                 let compressionRatio = originalSize > 0 ? Double(compressedSize) / Double(originalSize) : 0.0
                 
-                print("✅ [PNGQuant] 压缩成功 - 质量: \(quality), 原始大小: \(originalSize) bytes, 压缩后: \(compressedSize) bytes, 压缩比: \(String(format: "%.2f%%", compressionRatio * 100))")
+                print("✅ [PNGQuant] 压缩成功, 原始大小: \(originalSize) bytes, 压缩后: \(compressedSize) bytes, 压缩比: \(String(format: "%.2f%%", compressionRatio * 100))")
                 
                 return compressedData
             } catch {
