@@ -12,6 +12,7 @@ enum MediaCompressionError: Error {
 enum ImageFormat {
     case jpeg
     case heic
+    case png
 }
 
 final class MediaCompressor {
@@ -45,6 +46,13 @@ final class MediaCompressor {
         let hexString = bytes.prefix(12).map { String(format: "%02X", $0) }.joined(separator: " ")
         print("📋 [格式检测] 文件头 (前12字节): \(hexString)")
         
+        // PNG 格式检测 (89 50 4E 47 0D 0A 1A 0A)
+        if bytes.count >= 8 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47 &&
+           bytes[4] == 0x0D && bytes[5] == 0x0A && bytes[6] == 0x1A && bytes[7] == 0x0A {
+            print("✅ [格式检测] 检测到 PNG 格式")
+            return .png
+        }
+        
         // HEIC/HEIF 格式检测 (ftyp box)
         if bytes.count >= 12 {
             let ftypSignature = String(bytes: bytes[4..<8], encoding: .ascii)
@@ -73,6 +81,17 @@ final class MediaCompressor {
 
     static func encode(image: UIImage, quality: CGFloat, format: ImageFormat) -> Data {
         switch format {
+        case .png:
+            // PNG 无损格式，不压缩
+            print("🔄 [PNG] 使用 PNG 无损编码")
+            if let pngData = image.pngData() {
+                print("✅ [PNG] 编码成功 - 大小: \(pngData.count) bytes")
+                return pngData
+            } else {
+                print("❌ [PNG] 编码失败")
+                return Data()
+            }
+            
         case .jpeg:
             // 使用 MozJPEG 压缩
             let normalizedQuality = max(0.01, min(1.0, quality))

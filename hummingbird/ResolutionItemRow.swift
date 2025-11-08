@@ -156,7 +156,15 @@ struct ResolutionItemRow: View {
                         PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
                     } else if let data = item.compressedData {
                         // 根据输出格式确定文件扩展名
-                        let fileExtension = item.outputImageFormat == .heic ? "heic" : "jpg"
+                        let fileExtension: String
+                        switch item.outputImageFormat {
+                        case .heic:
+                            fileExtension = "heic"
+                        case .png:
+                            fileExtension = "png"
+                        default:
+                            fileExtension = "jpg"
+                        }
                         
                         // 将压缩后的数据写入临时文件
                         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())

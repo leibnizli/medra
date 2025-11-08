@@ -131,14 +131,27 @@ struct ResolutionView: View {
                     
                     // 检测原始图片格式（从 PhotosPickerItem 的 contentType 检测）
                     if !isVideo {
+                        let isPNG = item.supportedContentTypes.contains { contentType in
+                            contentType.identifier == "public.png" ||
+                            contentType.conforms(to: .png)
+                        }
                         let isHEIC = item.supportedContentTypes.contains { contentType in
                             contentType.identifier == "public.heic" || 
                             contentType.identifier == "public.heif" ||
                             contentType.conforms(to: .heic) ||
                             contentType.conforms(to: .heif)
                         }
-                        mediaItem.originalImageFormat = isHEIC ? .heic : .jpeg
-                        print("📋 [分辨率-格式检测] PhotosPickerItem 格式: \(isHEIC ? "HEIC" : "JPEG")")
+                        
+                        if isPNG {
+                            mediaItem.originalImageFormat = .png
+                            print("📋 [分辨率-格式检测] PhotosPickerItem 格式: PNG")
+                        } else if isHEIC {
+                            mediaItem.originalImageFormat = .heic
+                            print("📋 [分辨率-格式检测] PhotosPickerItem 格式: HEIC")
+                        } else {
+                            mediaItem.originalImageFormat = .jpeg
+                            print("📋 [分辨率-格式检测] PhotosPickerItem 格式: JPEG")
+                        }
                     }
                     
                     if isVideo {
@@ -278,7 +291,20 @@ struct ResolutionView: View {
         
         // 使用系统原生编码（不调用压缩），保持高质量
         let resizedData: Data
-        if originalFormat == .heic {
+        switch originalFormat {
+        case .png:
+            // PNG 格式 - 无损压缩
+            guard let pngData = image.pngData() else {
+                await MainActor.run {
+                    item.status = .failed
+                    item.errorMessage = "无法编码 PNG 图片"
+                }
+                return
+            }
+            resizedData = pngData
+            print("✅ [分辨率调整] PNG 编码成功 - 大小: \(resizedData.count) bytes")
+            
+        case .heic:
             // HEIC 格式
             if #available(iOS 11.0, *) {
                 let mutableData = NSMutableData()
@@ -315,7 +341,8 @@ struct ResolutionView: View {
                 resizedData = jpegData
                 print("✅ [分辨率调整] JPEG 编码成功（HEIC 不支持） - 大小: \(resizedData.count) bytes")
             }
-        } else {
+            
+        case .jpeg:
             // JPEG 格式 - 使用系统原生编码
             guard let jpegData = image.jpegData(compressionQuality: 0.9) else {
                 await MainActor.run {

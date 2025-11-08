@@ -106,15 +106,27 @@ struct CompressionView: View {
                     
                     // 检测原始图片格式（从 PhotosPickerItem 的 contentType 检测）
                     if !isVideo {
-                        // 检查是否支持 HEIC 格式
+                        let isPNG = item.supportedContentTypes.contains { contentType in
+                            contentType.identifier == "public.png" ||
+                            contentType.conforms(to: .png)
+                        }
                         let isHEIC = item.supportedContentTypes.contains { contentType in
                             contentType.identifier == "public.heic" || 
                             contentType.identifier == "public.heif" ||
                             contentType.conforms(to: .heic) ||
                             contentType.conforms(to: .heif)
                         }
-                        mediaItem.originalImageFormat = isHEIC ? .heic : .jpeg
-                        print("📋 [格式检测] PhotosPickerItem 格式: \(isHEIC ? "HEIC" : "JPEG")")
+                        
+                        if isPNG {
+                            mediaItem.originalImageFormat = .png
+                            print("📋 [格式检测] PhotosPickerItem 格式: PNG")
+                        } else if isHEIC {
+                            mediaItem.originalImageFormat = .heic
+                            print("📋 [格式检测] PhotosPickerItem 格式: HEIC")
+                        } else {
+                            mediaItem.originalImageFormat = .jpeg
+                            print("📋 [格式检测] PhotosPickerItem 格式: JPEG")
+                        }
                     }
                     
                     if isVideo {
@@ -235,7 +247,10 @@ struct CompressionView: View {
         do {
             // 根据设置决定输出格式
             let outputFormat: ImageFormat
-            if settings.preferHEIC && item.originalImageFormat == .heic {
+            if item.originalImageFormat == .png {
+                // PNG 始终保持 PNG 格式，不压缩
+                outputFormat = .png
+            } else if settings.preferHEIC && item.originalImageFormat == .heic {
                 // 开启 HEIC 优先，且原图是 HEIC，保持 HEIC
                 outputFormat = .heic
             } else {
