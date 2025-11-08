@@ -10,7 +10,7 @@ import Photos
 
 struct CompressionItemRow: View {
     @ObservedObject var item: MediaItem
-    @State private var showingSaveAlert = false
+    @State private var showingToast = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -135,15 +135,13 @@ struct CompressionItemRow: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .alert("保存成功", isPresented: $showingSaveAlert) {
-                    Button("确定", role: .cancel) { }
-                }
             }
         }
         .padding()
         .background(Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .toast(isShowing: $showingToast, message: "保存成功")
     }
     
     @ViewBuilder
@@ -200,7 +198,9 @@ struct CompressionItemRow: View {
                     }
                 }
                 await MainActor.run {
-                    showingSaveAlert = true
+                    withAnimation {
+                        showingToast = true
+                    }
                 }
             } catch {
                 print("保存失败: \(error.localizedDescription)")
