@@ -34,7 +34,7 @@ final class MediaCompressor {
         return encode(image: image, quality: CGFloat(settings.imageQuality), format: format)
     }
     
-    private static func detectImageFormat(data: Data) -> ImageFormat {
+    static func detectImageFormat(data: Data) -> ImageFormat {
         // 检查文件头来判断格式
         guard data.count > 12 else {
             print("📋 [格式检测] 数据太小，默认使用 JPEG")

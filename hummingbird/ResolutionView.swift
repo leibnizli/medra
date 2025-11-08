@@ -129,6 +129,18 @@ struct ResolutionView: View {
                     mediaItem.originalData = data
                     mediaItem.originalSize = data.count
                     
+                    // 检测原始图片格式（从 PhotosPickerItem 的 contentType 检测）
+                    if !isVideo {
+                        let isHEIC = item.supportedContentTypes.contains { contentType in
+                            contentType.identifier == "public.heic" || 
+                            contentType.identifier == "public.heif" ||
+                            contentType.conforms(to: .heic) ||
+                            contentType.conforms(to: .heif)
+                        }
+                        mediaItem.originalImageFormat = isHEIC ? .heic : .jpeg
+                        print("📋 [分辨率-格式检测] PhotosPickerItem 格式: \(isHEIC ? "HEIC" : "JPEG")")
+                    }
+                    
                     if isVideo {
                         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
                             .appendingPathComponent("source_\(mediaItem.id.uuidString)")
@@ -253,6 +265,9 @@ struct ResolutionView: View {
             return
         }
         
+        // 使用原始格式（从 item 中获取）
+        let originalFormat = item.originalImageFormat ?? .jpeg
+        
         // 修正方向
         image = image.fixOrientation()
         
@@ -261,19 +276,63 @@ struct ResolutionView: View {
             image = resizeAndCropImage(image, targetWidth: width, targetHeight: height)
         }
         
-        // 编码为JPEG（使用 0.9 质量，保持高质量同时避免文件过大）
-        guard let resizedData = image.jpegData(compressionQuality: 0.9) else {
-            await MainActor.run {
-                item.status = .failed
-                item.errorMessage = "无法编码图片"
+        // 使用系统原生编码（不调用压缩），保持高质量
+        let resizedData: Data
+        if originalFormat == .heic {
+            // HEIC 格式
+            if #available(iOS 11.0, *) {
+                let mutableData = NSMutableData()
+                if let cgImage = image.cgImage,
+                   let destination = CGImageDestinationCreateWithData(mutableData, AVFileType.heic as CFString, 1, nil) {
+                    let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 0.9]
+                    CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+                    if CGImageDestinationFinalize(destination) {
+                        resizedData = mutableData as Data
+                        print("✅ [分辨率调整] HEIC 编码成功 - 大小: \(resizedData.count) bytes")
+                    } else {
+                        await MainActor.run {
+                            item.status = .failed
+                            item.errorMessage = "HEIC 编码失败"
+                        }
+                        return
+                    }
+                } else {
+                    await MainActor.run {
+                        item.status = .failed
+                        item.errorMessage = "无法创建 HEIC 编码器"
+                    }
+                    return
+                }
+            } else {
+                // iOS 11 以下不支持 HEIC，回退到 JPEG
+                guard let jpegData = image.jpegData(compressionQuality: 0.9) else {
+                    await MainActor.run {
+                        item.status = .failed
+                        item.errorMessage = "无法编码图片"
+                    }
+                    return
+                }
+                resizedData = jpegData
+                print("✅ [分辨率调整] JPEG 编码成功（HEIC 不支持） - 大小: \(resizedData.count) bytes")
             }
-            return
+        } else {
+            // JPEG 格式 - 使用系统原生编码
+            guard let jpegData = image.jpegData(compressionQuality: 0.9) else {
+                await MainActor.run {
+                    item.status = .failed
+                    item.errorMessage = "无法编码图片"
+                }
+                return
+            }
+            resizedData = jpegData
+            print("✅ [分辨率调整] JPEG 编码成功 - 大小: \(resizedData.count) bytes")
         }
         
         await MainActor.run {
             item.compressedData = resizedData
             item.compressedSize = resizedData.count
             item.compressedResolution = image.size
+            item.outputImageFormat = originalFormat  // 记录输出格式
             item.status = .completed
             item.progress = 1.0
         }
