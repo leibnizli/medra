@@ -50,6 +50,71 @@ enum BitrateControlMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+// MARK: - 视频编码器
+enum VideoCodec: String, CaseIterable, Identifiable {
+    case h264 = "H.264 (硬件加速)"
+    case h265 = "H.265/HEVC (硬件加速)"
+    
+    var id: String { rawValue }
+    
+    var ffmpegCodec: String {
+        switch self {
+        case .h264: return "h264_videotoolbox"  // 使用 iOS 硬件编码器
+        case .h265: return "hevc_videotoolbox"  // 使用 iOS 硬件编码器
+        }
+    }
+}
+
+// MARK: - 视频质量预设
+enum VideoQualityPreset: String, CaseIterable, Identifiable {
+    case ultrafast = "极速 (质量较低)"
+    case superfast = "超快 (质量一般)"
+    case veryfast = "很快 (质量中等)"
+    case faster = "较快 (质量较好)"
+    case fast = "快速 (质量好)"
+    case medium = "中等 (平衡)"
+    case slow = "慢速 (质量很好)"
+    case slower = "较慢 (质量极好)"
+    case veryslow = "很慢 (质量最佳)"
+    
+    var id: String { rawValue }
+    
+    var ffmpegPreset: String {
+        switch self {
+        case .ultrafast: return "ultrafast"
+        case .superfast: return "superfast"
+        case .veryfast: return "veryfast"
+        case .faster: return "faster"
+        case .fast: return "fast"
+        case .medium: return "medium"
+        case .slow: return "slow"
+        case .slower: return "slower"
+        case .veryslow: return "veryslow"
+        }
+    }
+}
+
+// MARK: - CRF 质量模式
+enum CRFQualityMode: String, CaseIterable, Identifiable {
+    case veryHigh = "极高质量 (CRF 18)"
+    case high = "高质量 (CRF 23)"
+    case medium = "中等质量 (CRF 28)"
+    case low = "低质量 (CRF 32)"
+    case custom = "自定义"
+    
+    var id: String { rawValue }
+    
+    var crfValue: Int? {
+        switch self {
+        case .veryHigh: return 18
+        case .high: return 23
+        case .medium: return 28
+        case .low: return 32
+        case .custom: return nil
+        }
+    }
+}
+
 // MARK: - 压缩设置
 class CompressionSettings: ObservableObject {
     // 图片设置
@@ -58,33 +123,39 @@ class CompressionSettings: ObservableObject {
     @Published var webpQuality: Double = 0.80  // WebP 质量
     @Published var preferHEIC: Bool = false  // 优先使用 HEIC 格式
     
-    // 视频设置（保持原始分辨率，调整比特率）
+    // 视频设置 - FFmpeg 参数
+    @Published var videoCodec: VideoCodec = .h264  // 视频编码器
+    @Published var videoQualityPreset: VideoQualityPreset = .medium  // 质量预设
+    @Published var crfQualityMode: CRFQualityMode = .high  // CRF 质量模式
+    @Published var customCRF: Int = 23  // 自定义 CRF 值 (0-51, 越小质量越好)
     @Published var bitrateControlMode: BitrateControlMode = .auto
     @Published var customBitrate: Double = 5.0  // Mbps，用于手动模式
+    @Published var useHardwareAcceleration: Bool = true  // 使用硬件加速
+    @Published var twoPassEncoding: Bool = false  // 使用两遍编码（更好的质量控制）
     
-    // 计算实际使用的比特率（bps）
+    // 获取 CRF 值
+    func getCRFValue() -> Int {
+        if let crfValue = crfQualityMode.crfValue {
+            return crfValue
+        }
+        return customCRF
+    }
+    
+    // 计算实际使用的比特率（bps）- 用于比特率模式
     func calculateBitrate(for videoSize: CGSize) -> Int {
         switch bitrateControlMode {
         case .auto:
             // 根据分辨率自动计算合理的比特率
             let pixelCount = videoSize.width * videoSize.height
             
-            // 根据分辨率自动计算合理的比特率，确保文件变小但保持质量
-            // 720p (1280x720 = 921,600) -> ~2 Mbps
-            // 1080p (1920x1080 = 2,073,600) -> ~4 Mbps
-            // 4K (3840x2160 = 8,294,400) -> ~8 Mbps
             let bitsPerPixel: Double
             if pixelCount <= 1_000_000 {  // <= 720p
-                // 720p: 2 Mbps / 921,600 ≈ 2.17 bits/pixel，使用 2.0 确保压缩
                 bitsPerPixel = 2.0
             } else if pixelCount <= 2_500_000 {  // <= 1080p
-                // 1080p: 4 Mbps / 2,073,600 ≈ 1.93 bits/pixel，使用 1.9 确保压缩
                 bitsPerPixel = 1.9
-            } else if pixelCount <= 5_000_000 {  // <= 1440p 或竖屏 1080p+
-                // 1440p 或竖屏高分辨率: 使用 1.5 bits/pixel
+            } else if pixelCount <= 5_000_000 {  // <= 1440p
                 bitsPerPixel = 1.5
             } else {  // > 1440p (4K等)
-                // 4K: 8 Mbps / 8,294,400 ≈ 0.96 bits/pixel，使用 1.0 确保压缩
                 bitsPerPixel = 1.0
             }
             
@@ -93,6 +164,48 @@ class CompressionSettings: ObservableObject {
             // 使用用户设置的比特率（Mbps 转 bps）
             return Int(customBitrate * 1_000_000)
         }
+    }
+    
+    // 生成 FFmpeg 命令参数
+    func generateFFmpegCommand(inputPath: String, outputPath: String, videoSize: CGSize? = nil) -> String {
+        var command = ""
+        
+        // 硬件加速（必须在 -i 之前）
+        if useHardwareAcceleration {
+            command += "-hwaccel auto "
+        }
+        
+        // 输入文件
+        command += "-i \"\(inputPath)\""
+        
+        // 视频编码器
+        command += " -c:v \(videoCodec.ffmpegCodec)"
+        
+        // 质量预设
+        command += " -preset \(videoQualityPreset.ffmpegPreset)"
+        
+        // CRF 质量控制（恒定质量模式）
+        let crfValue = getCRFValue()
+        command += " -crf \(crfValue)"
+        
+        // 音频编码
+        command += " -c:a aac -b:a 128k"
+        
+        // 像素格式 - 确保兼容性
+        command += " -pix_fmt yuv420p"
+        
+        // 视频标签 - 对于 HEVC，添加兼容性标签
+        if videoCodec == .h265 {
+            command += " -tag:v hvc1"  // 使用 hvc1 标签以提高兼容性
+        }
+        
+        // 保持元数据和优化
+        command += " -movflags +faststart"
+        
+        // 输出文件
+        command += " \"\(outputPath)\""
+        
+        return command
     }
 }
 

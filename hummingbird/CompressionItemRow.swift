@@ -226,7 +226,26 @@ struct CompressionItemRow: View {
             do {
                 try await PHPhotoLibrary.shared().performChanges {
                     if item.isVideo, let url = item.compressedVideoURL {
-                        PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+                        // 检查文件是否存在
+                        guard FileManager.default.fileExists(atPath: url.path) else {
+                            print("❌ 视频文件不存在: \(url.path)")
+                            return
+                        }
+                        
+                        // 对于 HEVC 视频，需要确保文件格式兼容
+                        // 创建一个兼容的副本
+                        let compatibleURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                            .appendingPathComponent("save_\(UUID().uuidString).mov")
+                        
+                        // 复制文件并确保使用 .mov 扩展名（iOS 相册更兼容）
+                        try? FileManager.default.copyItem(at: url, to: compatibleURL)
+                        
+                        PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: compatibleURL)
+                        
+                        // 延迟清理临时文件
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                            try? FileManager.default.removeItem(at: compatibleURL)
+                        }
                     } else if let data = item.compressedData {
                         // 根据输出格式确定文件扩展名
                         let fileExtension: String

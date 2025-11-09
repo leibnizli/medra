@@ -440,81 +440,71 @@ struct CompressionView: View {
             await item.loadVideoDataIfNeeded()
         }
         
-        await withCheckedContinuation { continuation in
-            let exportSession = MediaCompressor.compressVideo(
-                at: sourceURL,
-                settings: settings,
-                outputFileType: .mp4,
-                progressHandler: { progress in
-                    Task { @MainActor in
-                        item.progress = progress
-                    }
-                },
-                completion: { result in
-                    Task { @MainActor in
-                        switch result {
-                        case .success(let url):
-                            // 获取压缩后的文件大小
-                            let compressedSize: Int
-                            if let data = try? Data(contentsOf: url) {
-                                compressedSize = data.count
-                            } else {
-                                compressedSize = 0
-                            }
-                            
-                            // 智能判断：如果压缩后反而变大，保留原视频
-                            if compressedSize >= item.originalSize {
-                                print("⚠️ [视频压缩判断] 压缩后大小 (\(compressedSize) bytes) >= 原视频 (\(item.originalSize) bytes)，保留原视频")
-                                
-                                // 使用原视频
-                                item.compressedVideoURL = sourceURL
-                                item.compressedSize = item.originalSize
-                                item.compressedResolution = item.originalResolution
-                                
-                                // 清理压缩后的临时文件
-                                try? FileManager.default.removeItem(at: url)
-                            } else {
-                                print("✅ [视频压缩判断] 压缩成功，从 \(item.originalSize) bytes 减少到 \(compressedSize) bytes")
-                                
-                                // 使用压缩后的视频
-                                item.compressedVideoURL = url
-                                item.compressedSize = compressedSize
-                                
-                                let asset = AVURLAsset(url: url)
-                                if let videoTrack = asset.tracks(withMediaType: .video).first {
-                                    let size = videoTrack.naturalSize
-                                    let transform = videoTrack.preferredTransform
-                                    let isPortrait = abs(transform.b) == 1.0 || abs(transform.c) == 1.0
-                                    item.compressedResolution = isPortrait ? CGSize(width: size.height, height: size.width) : size
-                                }
-                            }
-                            
-                            // 使用原始分辨率计算比特率（从 item.originalResolution）
-                            if let originalResolution = item.originalResolution {
-                                let bitrateBps = settings.calculateBitrate(for: originalResolution)
-                                item.usedBitrate = Double(bitrateBps) / 1_000_000.0 // 转换为 Mbps
-                                print("✅ 设置比特率: \(item.usedBitrate ?? 0) Mbps (分辨率: \(originalResolution))")
-                            }
-                            
-                            item.status = .completed
-                            item.progress = 1.0
-                        case .failure(let error):
-                            item.status = .failed
-                            item.errorMessage = error.localizedDescription
-                        }
-                        continuation.resume()
-                    }
-                }
-            )
-            
-            if exportSession == nil {
+        // 使用 FFmpeg 压缩，不需要 continuation（FFmpeg 是异步回调）
+        MediaCompressor.compressVideo(
+            at: sourceURL,
+            settings: settings,
+            outputFileType: .mp4,
+            progressHandler: { progress in
                 Task { @MainActor in
-                    item.status = .failed
-                    item.errorMessage = "无法创建导出会话"
-                    continuation.resume()
+                    item.progress = progress
+                }
+            },
+            completion: { result in
+                Task { @MainActor in
+                    switch result {
+                    case .success(let url):
+                        // 获取压缩后的文件大小
+                        let compressedSize: Int
+                        if let data = try? Data(contentsOf: url) {
+                            compressedSize = data.count
+                        } else {
+                            compressedSize = 0
+                        }
+                        
+                        // 智能判断：如果压缩后反而变大，保留原视频
+                        if compressedSize >= item.originalSize {
+                            print("⚠️ [视频压缩判断] 压缩后大小 (\(compressedSize) bytes) >= 原视频 (\(item.originalSize) bytes)，保留原视频")
+                            
+                            // 使用原视频
+                            item.compressedVideoURL = sourceURL
+                            item.compressedSize = item.originalSize
+                            item.compressedResolution = item.originalResolution
+                            
+                            // 清理压缩后的临时文件
+                            try? FileManager.default.removeItem(at: url)
+                        } else {
+                            print("✅ [视频压缩判断] 压缩成功，从 \(item.originalSize) bytes 减少到 \(compressedSize) bytes")
+                            
+                            // 使用压缩后的视频
+                            item.compressedVideoURL = url
+                            item.compressedSize = compressedSize
+                            
+                            let asset = AVURLAsset(url: url)
+                            if let videoTrack = asset.tracks(withMediaType: .video).first {
+                                let size = videoTrack.naturalSize
+                                let transform = videoTrack.preferredTransform
+                                let isPortrait = abs(transform.b) == 1.0 || abs(transform.c) == 1.0
+                                item.compressedResolution = isPortrait ? CGSize(width: size.height, height: size.width) : size
+                            }
+                        }
+                        
+                        // 使用原始分辨率计算比特率（从 item.originalResolution）
+                        if let originalResolution = item.originalResolution {
+                            let bitrateBps = settings.calculateBitrate(for: originalResolution)
+                            item.usedBitrate = Double(bitrateBps) / 1_000_000.0 // 转换为 Mbps
+                            print("✅ 设置比特率: \(item.usedBitrate ?? 0) Mbps (分辨率: \(originalResolution))")
+                        }
+                        
+                        item.status = .completed
+                        item.progress = 1.0
+                    case .failure(let error):
+                        item.status = .failed
+                        item.errorMessage = error.localizedDescription
+                    }
                 }
             }
-        }
+        )
     }
 }
 

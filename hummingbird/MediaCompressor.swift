@@ -229,6 +229,30 @@ final class MediaCompressor {
         progressHandler: @escaping (Float) -> Void,
         completion: @escaping (Result<URL, Error>) -> Void
     ) -> AVAssetExportSession? {
+        // 使用 FFmpeg 进行视频压缩
+        let outputURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("compressed_\(UUID().uuidString)")
+            .appendingPathExtension("mp4")
+        
+        FFmpegVideoCompressor.compressVideo(
+            inputURL: sourceURL,
+            outputURL: outputURL,
+            settings: settings,
+            progressHandler: progressHandler,
+            completion: completion
+        )
+        
+        return nil  // FFmpeg 不使用 AVAssetExportSession
+    }
+    
+    // 保留旧的 AVAssetExportSession 方法作为备用
+    static func compressVideoLegacy(
+        at sourceURL: URL,
+        settings: CompressionSettings,
+        outputFileType: AVFileType = .mp4,
+        progressHandler: @escaping (Float) -> Void,
+        completion: @escaping (Result<URL, Error>) -> Void
+    ) -> AVAssetExportSession? {
         let asset = AVURLAsset(url: sourceURL)
         
         // 获取视频轨道信息
