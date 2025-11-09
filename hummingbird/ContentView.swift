@@ -20,6 +20,7 @@ struct ContentView: View {
                     Label("格式", systemImage: "arrow.triangle.2.circlepath")
                 }
         }
+        .environment(\.horizontalSizeClass, .compact)
     }
 }
 
