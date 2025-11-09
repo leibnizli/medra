@@ -41,31 +41,40 @@ struct FormatItemRow: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         
-                        if let originalFormat = item.originalImageFormat {
-                            Text(originalFormat.rawValue.uppercased())
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else if item.isVideo {
-                            Text(item.fileExtension.uppercased())
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        
                         if item.status == .completed {
-                            if let outputFormat = item.outputImageFormat {
-                                Image(systemName: "arrow.right")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text(outputFormat.rawValue.uppercased())
+                            // 显示格式的变化
+                            let originalFormatText = item.originalImageFormat?.rawValue.uppercased() ?? (item.isVideo ? item.fileExtension.uppercased() : "")
+                            let outputFormatText = item.outputImageFormat?.rawValue.uppercased() ?? item.outputVideoFormat?.uppercased() ?? ""
+                            
+                            if !originalFormatText.isEmpty {
+                                if outputFormatText.isEmpty || originalFormatText == outputFormatText {
+                                    // 如果格式没有变化，只显示原始格式
+                                    Text(originalFormatText)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    // 如果格式有变化，显示转换前后的格式
+                                    Text(originalFormatText)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Image(systemName: "arrow.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Text(outputFormatText)
+                                        .font(.caption)
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        } else {
+                            // 未处理完成时只显示原始格式
+                            if let originalFormat = item.originalImageFormat {
+                                Text(originalFormat.rawValue.uppercased())
                                     .font(.caption)
-                                    .foregroundStyle(.blue)
-                            } else if let outputVideoFormat = item.outputVideoFormat {
-                                Image(systemName: "arrow.right")
-                                    .font(.caption2)
                                     .foregroundStyle(.secondary)
-                                Text(outputVideoFormat.uppercased())
+                            } else if item.isVideo {
+                                Text(item.fileExtension.uppercased())
                                     .font(.caption)
-                                    .foregroundStyle(.blue)
+                                    .foregroundStyle(.secondary)
                             }
                         }
                     }

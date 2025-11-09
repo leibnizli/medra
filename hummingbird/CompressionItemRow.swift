@@ -41,19 +41,66 @@ struct CompressionItemRow: View {
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
-                        // 文件扩展名
-                        if !item.fileExtension.isEmpty {
-                            Text("·")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text(item.fileExtension.uppercased())
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.15))
-                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                        // 文件格式
+                        if item.status == .completed {
+                            let originalFormat = item.originalImageFormat?.rawValue.uppercased() ?? (item.isVideo ? item.fileExtension.uppercased() : "")
+                            let outputFormat = item.outputImageFormat?.rawValue.uppercased() ?? item.outputVideoFormat?.uppercased() ?? ""
+                            
+                            if !originalFormat.isEmpty {
+                                if outputFormat.isEmpty || originalFormat == outputFormat {
+                                    // 如果格式没有变化或未指定输出格式，只显示原始格式
+                                    Text("·")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    Text(originalFormat)
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.secondary.opacity(0.15))
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                } else {
+                                    // 如果格式有变化，显示转换过程
+                                    Text("·")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    Text(originalFormat)
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.secondary.opacity(0.15))
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                    Image(systemName: "arrow.right")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(outputFormat)
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.blue)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.blue.opacity(0.15))
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                }
+                            }
+                        } else {
+                            // 未完成时只显示原始格式
+                            if !item.fileExtension.isEmpty {
+                                Text("·")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                Text(item.fileExtension.uppercased())
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.secondary.opacity(0.15))
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                            }
                         }
                         
                         Spacer()

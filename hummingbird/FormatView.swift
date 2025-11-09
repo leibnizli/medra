@@ -18,28 +18,64 @@ struct FormatView: View {
     @State private var targetImageFormat: ImageFormat = .jpeg
     @State private var targetVideoFormat: VideoFormat = .mp4
     @State private var useHEVC: Bool = true // 默认使用 HEVC
+    @State private var showingPhotoPicker = false
+    @State private var showingFilePicker = false
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
                 // 顶部选择按钮
-                HStack(spacing: 12) {
-                    PhotosPicker(selection: $selectedItems, maxSelectionCount: 20, matching: .any(of: [.images, .videos])) {
-                        Label("选择文件", systemImage: "photo.on.rectangle.angled")
-                            .font(.headline)
+                VStack(spacing: 0) {
+                    HStack(spacing: 12) {
+                        // 左侧：下拉菜单选择来源
+                        Menu {
+                            Button(action: { showingPhotoPicker = true }) {
+                                Label("从相册选择", systemImage: "photo.on.rectangle.angled")
+                            }
+                            
+                            Button(action: { showingFilePicker = true }) {
+                                Label("从文件选择", systemImage: "folder.fill")
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("添加文件")
+                                    .font(.system(size: 15, weight: .semibold))
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
                             .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    
-                    Button(action: startBatchConversion) {
-                        Label("开始转换", systemImage: "arrow.triangle.2.circlepath")
-                            .font(.headline)
+                            .frame(height: 44)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                        
+                        // 右侧：开始按钮
+                        Button(action: startBatchConversion) {
+                            HStack(spacing: 6) {
+                                if isConverting {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 16, weight: .bold))
+                                }
+                                Text(isConverting ? "转换中" : "开始转换")
+                                    .font(.system(size: 15, weight: .bold))
+                            }
                             .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(mediaItems.isEmpty || isConverting ? .gray : .orange)
+                        .disabled(mediaItems.isEmpty || isConverting)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(mediaItems.isEmpty || isConverting)
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
                 }
-                .padding()
+                .background(Color(.systemBackground))
                 
                 // 格式设置
                 VStack(spacing: 12) {
@@ -122,10 +158,93 @@ struct FormatView: View {
                 }
             }
         }
+        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 20, matching: .any(of: [.images, .videos]))
+        .fileImporter(isPresented: $showingFilePicker, allowedContentTypes: [.image, .movie, .video], allowsMultipleSelection: true) { result in
+            switch result {
+            case .success(let urls):
+                Task {
+                    await loadFilesFromURLs(urls)
+                }
+            case .failure(let error):
+                print("文件选择失败: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func loadFilesFromURLs(_ urls: [URL]) async {
+        await MainActor.run {
+            mediaItems.removeAll()
+        }
+        
+        for url in urls {
+            // 验证文件是否可访问
+            guard url.startAccessingSecurityScopedResource() else { continue }
+            defer { url.stopAccessingSecurityScopedResource() }
+            
+            // 检查文件类型
+            let isVideo = UTType(filenameExtension: url.pathExtension)?.conforms(to: .movie) ?? false
+            let mediaItem = MediaItem(pickerItem: nil, isVideo: isVideo)
+            
+            // 添加到列表
+            await MainActor.run {
+                mediaItems.append(mediaItem)
+            }
+            
+            do {
+                // 读取文件数据
+                let data = try Data(contentsOf: url)
+                
+                await MainActor.run {
+                    mediaItem.originalData = data
+                    mediaItem.originalSize = data.count
+                    mediaItem.fileExtension = url.pathExtension.lowercased()
+                    
+                    // 设置格式
+                    if isVideo {
+                        // 视频文件
+                        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                            .appendingPathComponent("source_\(mediaItem.id.uuidString)")
+                            .appendingPathExtension(url.pathExtension)
+                        try? data.write(to: tempURL)
+                        mediaItem.sourceVideoURL = tempURL
+                    } else if let type = UTType(filenameExtension: url.pathExtension) {
+                        if type.conforms(to: .png) {
+                            mediaItem.originalImageFormat = .png
+                        } else if type.conforms(to: .heic) {
+                            mediaItem.originalImageFormat = .heic
+                        } else if type.identifier == "org.webmproject.webp" {
+                            mediaItem.originalImageFormat = .webp
+                        } else {
+                            mediaItem.originalImageFormat = .jpeg
+                        }
+                    }
+                    
+                    // 如果是图片，生成缩略图和获取分辨率
+                    if !isVideo, let image = UIImage(data: data) {
+                        mediaItem.thumbnailImage = generateThumbnail(from: image)
+                        mediaItem.originalResolution = image.size
+                        mediaItem.status = .pending
+                    }
+                }
+                
+                // 如果是视频，处理视频相关信息
+                if isVideo, let tempURL = mediaItem.sourceVideoURL {
+                    await loadVideoMetadata(for: mediaItem, url: tempURL)
+                }
+            } catch {
+                print("读取文件失败: \(error.localizedDescription)")
+                await MainActor.run {
+                    mediaItem.status = .failed
+                    mediaItem.errorMessage = "读取文件失败"
+                }
+            }
+        }
     }
     
     private func loadSelectedItems(_ items: [PhotosPickerItem]) async {
-        mediaItems.removeAll()
+        await MainActor.run {
+            mediaItems.removeAll()
+        }
         
         for item in items {
             let isVideo = item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) || $0.conforms(to: .video) })

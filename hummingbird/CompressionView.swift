@@ -15,31 +15,72 @@ struct CompressionView: View {
     @State private var mediaItems: [MediaItem] = []
     @State private var isCompressing = false
     @State private var showingSettings = false
+    @State private var showingFilePicker = false
+    @State private var showingPhotoPicker = false
     @StateObject private var settings = CompressionSettings()
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
                 // 顶部选择按钮
-                HStack(spacing: 12) {
-                    PhotosPicker(selection: $selectedItems, maxSelectionCount: 20, matching: .any(of: [.images, .videos])) {
-                        Label("选择文件", systemImage: "photo.on.rectangle.angled")
-                            .font(.headline)
+                VStack(spacing: 0) {
+                    HStack(spacing: 12) {
+                        // 左侧：下拉菜单选择来源
+                        Menu {
+                            Button(action: { showingPhotoPicker = true }) {
+                                Label("从相册选择", systemImage: "photo.on.rectangle.angled")
+                            }
+                            
+                            Button(action: { showingFilePicker = true }) {
+                                Label("从文件选择", systemImage: "folder.fill")
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text("添加文件")
+                                    .font(.system(size: 15, weight: .semibold))
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
                             .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                        
+                        // 右侧：开始按钮
+                        Button(action: startBatchCompression) {
+                            HStack(spacing: 6) {
+                                if isCompressing {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "bolt.fill")
+                                        .font(.system(size: 16, weight: .bold))
+                                }
+                                Text(isCompressing ? "处理中" : "开始压缩")
+                                    .font(.system(size: 15, weight: .bold))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(mediaItems.isEmpty || isCompressing ? .gray : .green)
+                        .disabled(mediaItems.isEmpty || isCompressing)
+                        .animation(.easeInOut(duration: 0.2), value: isCompressing)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color(uiColor: .systemGroupedBackground))
                     
-                    Button(action: startBatchCompression) {
-                        Label("开始压缩", systemImage: "arrow.down.circle.fill")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(mediaItems.isEmpty || isCompressing)
+                    // 底部分隔线
+                    Rectangle()
+                        .fill(Color(uiColor: .separator).opacity(0.5))
+                        .frame(height: 0.5)
                 }
-                .padding()
-                
-                Divider()
+
                 
                 // 文件列表
                 if mediaItems.isEmpty {
@@ -89,6 +130,92 @@ struct CompressionView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView(settings: settings)
+        }
+        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 20, matching: .any(of: [.images, .videos]))
+        .fileImporter(
+            isPresented: $showingFilePicker,
+            allowedContentTypes: [.image, .movie],
+            allowsMultipleSelection: true
+        ) { result in
+            Task {
+                do {
+                    let urls = try result.get()
+                    await loadFileURLs(urls)
+                } catch {
+                    print("文件选择错误: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+    
+    private func loadFileURLs(_ urls: [URL]) async {
+        for url in urls {
+            // 验证文件是否可访问
+            guard url.startAccessingSecurityScopedResource() else { continue }
+            defer { url.stopAccessingSecurityScopedResource() }
+            
+            // 检查文件类型
+            let isVideo = UTType(filenameExtension: url.pathExtension)?.conforms(to: .movie) ?? false
+            let mediaItem = MediaItem(pickerItem: nil, isVideo: isVideo)
+            
+            // 添加到列表
+            await MainActor.run {
+                mediaItems.append(mediaItem)
+            }
+            
+            do {
+                // 读取文件数据
+                let data = try Data(contentsOf: url)
+                
+                await MainActor.run {
+                    mediaItem.originalData = data
+                    mediaItem.originalSize = data.count
+                    mediaItem.fileExtension = url.pathExtension.lowercased()
+                    
+                    // 设置格式
+                    if isVideo {
+                        mediaItem.outputVideoFormat = url.pathExtension.lowercased()
+                    } else if let type = UTType(filenameExtension: url.pathExtension) {
+                        if type.conforms(to: .png) {
+                            mediaItem.originalImageFormat = .png
+                        } else if type.conforms(to: .heic) {
+                            mediaItem.originalImageFormat = .heic
+                        } else if type.conforms(to: .webP) {
+                            mediaItem.originalImageFormat = .webp
+                        } else {
+                            mediaItem.originalImageFormat = .jpeg
+                        }
+                    }
+                    
+                    // 如果是图片，生成缩略图和获取分辨率
+                    if !isVideo, let image = UIImage(data: data) {
+                        mediaItem.thumbnailImage = generateThumbnail(from: image)
+                        mediaItem.originalResolution = image.size
+                        mediaItem.status = .pending
+                    }
+                }
+                
+                // 如果是视频，处理视频相关信息
+                if isVideo {
+                    // 创建临时文件
+                    let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                        .appendingPathComponent("source_\(mediaItem.id.uuidString)")
+                        .appendingPathExtension(url.pathExtension)
+                    try data.write(to: tempURL)
+                    
+                    await MainActor.run {
+                        mediaItem.sourceVideoURL = tempURL
+                    }
+                    
+                    // 加载视频元数据
+                    await loadVideoMetadata(for: mediaItem, url: tempURL)
+                }
+            } catch {
+                await MainActor.run {
+                    mediaItem.status = .failed
+                    mediaItem.errorMessage = error.localizedDescription
+                }
+            }
         }
     }
     
@@ -163,22 +290,61 @@ struct CompressionView: View {
     
     private func loadVideoItemOptimized(_ item: PhotosPickerItem, _ mediaItem: MediaItem) async {
         // 检测视频格式
-        let isMOV = item.supportedContentTypes.contains { contentType in
-            contentType.identifier == "com.apple.quicktime-movie" ||
-            contentType.conforms(to: .quickTimeMovie)
-        }
-        let isMP4 = item.supportedContentTypes.contains { contentType in
-            contentType.identifier == "public.mpeg-4" ||
-            contentType.conforms(to: .mpeg4Movie)
+        var detectedFormat = "video"
+        
+        // 检查所有支持的内容类型
+        for contentType in item.supportedContentTypes {
+            // MOV 格式检测
+            if contentType.identifier == "com.apple.quicktime-movie" ||
+               contentType.conforms(to: .quickTimeMovie) ||
+               contentType.preferredFilenameExtension == "mov" {
+                detectedFormat = "mov"
+                break
+            }
+            // MP4 格式检测
+            else if contentType.identifier == "public.mpeg-4" ||
+                    contentType.conforms(to: .mpeg4Movie) ||
+                    contentType.preferredFilenameExtension == "mp4" ||
+                    contentType.identifier == "public.mp4" {
+                detectedFormat = "mp4"
+                break
+            }
+            // AVI 格式检测
+            else if contentType.identifier == "public.avi" ||
+                    contentType.preferredFilenameExtension == "avi" {
+                detectedFormat = "avi"
+                break
+            }
+            // MKV 格式检测
+            else if contentType.identifier == "org.matroska.mkv" ||
+                    contentType.preferredFilenameExtension == "mkv" {
+                detectedFormat = "mkv"
+                break
+            }
+            // WebM 格式检测
+            else if contentType.identifier == "org.webmproject.webm" ||
+                    contentType.preferredFilenameExtension == "webm" {
+                detectedFormat = "webm"
+                break
+            }
+            // 通用视频格式检测
+            else if contentType.conforms(to: .movie) ||
+                    contentType.conforms(to: .video) {
+                // 尝试从 preferredFilenameExtension 获取具体格式
+                if let ext = contentType.preferredFilenameExtension?.lowercased(),
+                   ["mov", "mp4", "avi", "mkv", "webm", "m4v"].contains(ext) {
+                    detectedFormat = ext
+                    break
+                }
+            }
         }
         
         await MainActor.run {
-            if isMOV {
-                mediaItem.fileExtension = "mov"
-            } else if isMP4 {
-                mediaItem.fileExtension = "mp4"
-            } else {
-                mediaItem.fileExtension = "video"
+            // 设置文件扩展名
+            mediaItem.fileExtension = detectedFormat
+            // 同时记录原始视频格式，用于后续格式转换的显示
+            if detectedFormat != "video" {
+                mediaItem.outputVideoFormat = detectedFormat
             }
         }
         

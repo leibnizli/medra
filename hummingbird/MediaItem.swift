@@ -22,7 +22,7 @@ enum CompressionStatus {
 @MainActor
 class MediaItem: Identifiable, ObservableObject {
     let id = UUID()
-    let pickerItem: PhotosPickerItem
+    let pickerItem: PhotosPickerItem?
     let isVideo: Bool
     
     @Published var originalData: Data?
@@ -58,10 +58,10 @@ class MediaItem: Identifiable, ObservableObject {
     var sourceVideoURL: URL?
     var compressedVideoURL: URL?
     
-    init(pickerItem: PhotosPickerItem, isVideo: Bool) {
+    init(pickerItem: PhotosPickerItem?, isVideo: Bool) {
         self.pickerItem = pickerItem
         self.isVideo = isVideo
-        self.status = .loading  // 初始状态为加载中
+        self.status = pickerItem != nil ? .loading : .pending  // 如果是从文件导入，直接设为pending状态
     }
     
     // 计算压缩率（减少的百分比）
@@ -119,18 +119,22 @@ class MediaItem: Identifiable, ObservableObject {
         }
         
         // 如果是 PhotosPickerItem，重新加载
-        do {
-            let data = try await pickerItem.loadTransferable(type: Data.self)
-            await MainActor.run {
-                self.originalData = data
-                if let data = data {
-                    self.originalSize = data.count
+        if let pickerItem = pickerItem {
+            do {
+                let data = try await pickerItem.loadTransferable(type: Data.self)
+                await MainActor.run {
+                    self.originalData = data
+                    if let data = data {
+                        self.originalSize = data.count
+                    }
                 }
+                return data
+            } catch {
+                print("延迟加载视频数据失败: \(error)")
+                return nil
             }
-            return data
-        } catch {
-            print("延迟加载视频数据失败: \(error)")
-            return nil
         }
+        
+        return nil
     }
 }
