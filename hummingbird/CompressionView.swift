@@ -130,6 +130,8 @@ struct CompressionView: View {
         }
         .sheet(isPresented: $showingSettings) {
             CompressionSettingsView(settings: settings)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
         }
         .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 20, matching: .any(of: [.images, .videos]))
         .fileImporter(

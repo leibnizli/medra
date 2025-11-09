@@ -123,6 +123,8 @@ struct FormatView: View {
                 targetVideoFormat: $targetVideoFormat,
                 useHEVC: $useHEVC
             )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .onChange(of: selectedItems) { _, newItems in
             guard !newItems.isEmpty else { return }

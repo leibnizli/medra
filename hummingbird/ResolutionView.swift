@@ -139,6 +139,8 @@ struct ResolutionView: View {
                     customHeight: $customHeight,
                     resizeMode: $resizeMode
                 )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
         }
         .onChange(of: selectedItems) { _, newItems in
@@ -1001,7 +1003,7 @@ struct ResolutionSettingsSheet: View {
             .navigationTitle("分辨率设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("完成") {
                         dismiss()
                     }
