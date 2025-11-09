@@ -643,11 +643,6 @@ struct FormatView: View {
             return
         }
         
-        // 获取视频详细信息
-        let naturalSize = try? await videoTrack.load(.naturalSize)
-        let preferredTransform = try? await videoTrack.load(.preferredTransform)
-        let nominalFrameRate = try? await videoTrack.load(.nominalFrameRate)
-        
         // 选择合适的预设
         let presetName: String
         if useHEVC && AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality) {
@@ -670,59 +665,19 @@ struct FormatView: View {
         let outputURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("converted_\(UUID().uuidString)")
             .appendingPathExtension(fileExtension)
-            
-        // 配置视频合成
-        let videoComposition = AVMutableVideoComposition()
-        if let size = naturalSize {
-            videoComposition.renderSize = size
-            if let frameRate = nominalFrameRate {
-                videoComposition.frameDuration = CMTime(value: 1, timescale: Int32(frameRate))
-            } else {
-                videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
-            }
-            
-            let instruction = AVMutableVideoCompositionInstruction()
-            instruction.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
-            
-            let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
-            if let transform = preferredTransform {
-                layerInstruction.setTransform(transform, at: .zero)
-            }
-            
-            instruction.layerInstructions = [layerInstruction]
-            videoComposition.instructions = [instruction]
-            
-            exportSession.videoComposition = videoComposition
-        }
         
         exportSession.outputURL = outputURL
-        // 设置输出格式和编码器
         exportSession.outputFileType = outputFormat.avFileType
         exportSession.shouldOptimizeForNetworkUse = true
         
-        // 配置输出选项
-        if useHEVC {
-            // 对于 HEVC，创建新的视频合成配置
-            let hevcComposition = AVMutableVideoComposition()
-            hevcComposition.renderSize = naturalSize ?? videoTrack.naturalSize
-            if let frameRate = nominalFrameRate {
-                hevcComposition.frameDuration = CMTime(value: 1, timescale: Int32(frameRate))
-            } else {
-                hevcComposition.frameDuration = CMTime(value: 1, timescale: 30)
-            }
-
-            let instruction = AVMutableVideoCompositionInstruction()
-            instruction.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
-            
-            let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
-            if let transform = preferredTransform {
-                layerInstruction.setTransform(transform, at: .zero)
-            }
-            
-            instruction.layerInstructions = [layerInstruction]
-            hevcComposition.instructions = [instruction]
-            
-            exportSession.videoComposition = hevcComposition
+        // 使用 AVFoundation 自动处理旋转和方向
+        // 通过 videoComposition(withPropertiesOf:) 可以自动应用正确的变换
+        do {
+            let videoComposition = try await AVMutableVideoComposition.videoComposition(withPropertiesOf: asset)
+            exportSession.videoComposition = videoComposition
+        } catch {
+            print("⚠️ 创建视频合成失败，将使用默认设置: \(error)")
+            // 如果自动创建失败，不设置 videoComposition，让系统使用默认处理
         }
         
         let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { t in
