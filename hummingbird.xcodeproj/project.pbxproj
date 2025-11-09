@@ -20,8 +20,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		84E0DCB62EBA3266006AD34D /* hummingbird */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = hummingbird;
 			sourceTree = "<group>";
 		};
@@ -124,6 +122,9 @@
 			);
 			mainGroup = 84E0DCAB2EBA3266006AD34D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8405EA8B2EBF2BB700D71683 /* XCRemoteSwiftPackageReference "pngquant" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 84E0DCB52EBA3266006AD34D /* Products */;
 			projectDirPath = "";
@@ -153,9 +154,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-hummingbird/Pods-hummingbird-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-hummingbird/Pods-hummingbird-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -331,7 +336,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XTWM4R2294;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Hummingbird;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "需要访问相册以保存压缩后的图片和视频";
@@ -373,7 +377,6 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = XTWM4R2294;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Hummingbird;
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "需要访问相册以保存压缩后的图片和视频";
@@ -425,6 +428,17 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8405EA8B2EBF2BB700D71683 /* XCRemoteSwiftPackageReference "pngquant" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/awxkee/pngquant.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.5;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 	};
 	rootObject = 84E0DCAC2EBA3266006AD34D /* Project object */;
 }

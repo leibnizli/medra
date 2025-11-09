@@ -17,6 +17,7 @@ struct FormatView: View {
     @State private var isConverting = false
     @State private var targetImageFormat: ImageFormat = .jpeg
     @State private var targetVideoFormat: VideoFormat = .mp4
+    @State private var useHEVC: Bool = true // 默认使用 HEVC
     
     var body: some View {
         NavigationView {
@@ -54,17 +55,27 @@ struct FormatView: View {
                         .frame(width: 150)
                     }
                     
-                    HStack {
-                        Text("视频格式")
-                            .font(.headline)
-                        Spacer()
-                        Picker("视频格式", selection: $targetVideoFormat) {
-                            Text("MP4").tag(VideoFormat.mp4)
-                            Text("MOV").tag(VideoFormat.mov)
-                            Text("M4V").tag(VideoFormat.m4v)
+                    VStack(spacing: 12) {
+                        HStack {
+                            Text("视频格式")
+                                .font(.headline)
+                            Spacer()
+                            Picker("视频格式", selection: $targetVideoFormat) {
+                                Text("MP4").tag(VideoFormat.mp4)
+                                Text("MOV").tag(VideoFormat.mov)
+                                Text("M4V").tag(VideoFormat.m4v)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 200)
                         }
-                        .pickerStyle(.segmented)
-                        .frame(width: 200)
+                        
+                        HStack {
+                            Text("编码方式")
+                                .font(.headline)
+                            Spacer()
+                            Toggle("使用 HEVC (H.265)", isOn: $useHEVC)
+                        }
+                        .opacity(AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality) ? 1 : 0)
                     }
                 }
                 .padding()
@@ -375,13 +386,18 @@ struct FormatView: View {
             return
         }
         
-        guard let image = UIImage(data: originalData) else {
+        // 使用 CGImageSource 来保留元数据
+        guard let imageSource = CGImageSourceCreateWithData(originalData as CFData, nil),
+              let image = UIImage(data: originalData) else {
             await MainActor.run {
                 item.status = .failed
                 item.errorMessage = "无法解码图片"
             }
             return
         }
+        
+        // 获取原始图片的元数据
+        let imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any]
         
         await MainActor.run {
             item.progress = 0.3
@@ -393,25 +409,89 @@ struct FormatView: View {
         
         switch outputFormat {
         case .jpeg:
-            convertedData = image.jpegData(compressionQuality: 1.0)
+            let destinationData = NSMutableData()
+            guard let destination = CGImageDestinationCreateWithData(destinationData, UTType.jpeg.identifier as CFString, 1, nil) else {
+                convertedData = nil
+                break
+            }
+            
+            // 配置转换选项
+            let options: [CFString: Any] = [
+                kCGImageDestinationLossyCompressionQuality: 1.0,
+                kCGImageDestinationOptimizeColorForSharing: true
+            ]
+            
+            if let properties = imageProperties {
+                CGImageDestinationSetProperties(destination, properties as CFDictionary)
+            }
+            
+            if let cgImage = image.cgImage {
+                CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+                if CGImageDestinationFinalize(destination) {
+                    convertedData = destinationData as Data
+                } else {
+                    convertedData = nil
+                }
+            } else {
+                convertedData = nil
+            }
             
         case .png:
-            convertedData = image.pngData()
+            let destinationData = NSMutableData()
+            guard let destination = CGImageDestinationCreateWithData(destinationData, UTType.png.identifier as CFString, 1, nil) else {
+                convertedData = nil
+                break
+            }
+            
+            // PNG 特定选项
+            let options: [CFString: Any] = [
+                kCGImageDestinationOptimizeColorForSharing: true
+            ]
+            
+            if let properties = imageProperties {
+                CGImageDestinationSetProperties(destination, properties as CFDictionary)
+            }
+            
+            if let cgImage = image.cgImage {
+                CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+                if CGImageDestinationFinalize(destination) {
+                    convertedData = destinationData as Data
+                } else {
+                    convertedData = nil
+                }
+            } else {
+                convertedData = nil
+            }
             
         case .webp:
             let webpCoder = SDImageWebPCoder.shared
-            convertedData = webpCoder.encodedData(with: image, format: .webP, options: [.encodeCompressionQuality: 1.0])
+            let options: [SDImageCoderOption: Any] = [
+                .encodeCompressionQuality: 1.0
+            ]
+            convertedData = webpCoder.encodedData(with: image, format: .webP, options: options)
             
         case .heic:
-            // HEIC 格式
             if #available(iOS 11.0, *) {
-                let mutableData = NSMutableData()
-                if let cgImage = image.cgImage,
-                   let destination = CGImageDestinationCreateWithData(mutableData, AVFileType.heic as CFString, 1, nil) {
-                    let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: 1.0]
+                let destinationData = NSMutableData()
+                guard let destination = CGImageDestinationCreateWithData(destinationData, AVFileType.heic as CFString, 1, nil) else {
+                    convertedData = nil
+                    break
+                }
+                
+                // HEIC 特定选项
+                let options: [CFString: Any] = [
+                    kCGImageDestinationLossyCompressionQuality: 1.0,
+                    kCGImageDestinationOptimizeColorForSharing: true
+                ]
+                
+                if let properties = imageProperties {
+                    CGImageDestinationSetProperties(destination, properties as CFDictionary)
+                }
+                
+                if let cgImage = image.cgImage {
                     CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
                     if CGImageDestinationFinalize(destination) {
-                        convertedData = mutableData as Data
+                        convertedData = destinationData as Data
                     } else {
                         convertedData = nil
                     }
@@ -457,7 +537,31 @@ struct FormatView: View {
         }
         
         let asset = AVURLAsset(url: sourceURL)
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
+        
+        // 获取原始视频信息
+        guard let videoTrack = try? await asset.loadTracks(withMediaType: .video).first else {
+            await MainActor.run {
+                item.status = .failed
+                item.errorMessage = "无法获取视频轨道信息"
+            }
+            return
+        }
+        
+        // 获取视频详细信息
+        let naturalSize = try? await videoTrack.load(.naturalSize)
+        let preferredTransform = try? await videoTrack.load(.preferredTransform)
+        let nominalFrameRate = try? await videoTrack.load(.nominalFrameRate)
+        
+        // 选择合适的预设
+        let presetName: String
+        if useHEVC && AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality) {
+            presetName = AVAssetExportPresetHEVCHighestQuality
+        } else {
+            presetName = AVAssetExportPresetHighestQuality
+        }
+        
+        // 创建导出会话
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: presetName) else {
             await MainActor.run {
                 item.status = .failed
                 item.errorMessage = "无法创建导出会话"
@@ -470,10 +574,60 @@ struct FormatView: View {
         let outputURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("converted_\(UUID().uuidString)")
             .appendingPathExtension(fileExtension)
+            
+        // 配置视频合成
+        let videoComposition = AVMutableVideoComposition()
+        if let size = naturalSize {
+            videoComposition.renderSize = size
+            if let frameRate = nominalFrameRate {
+                videoComposition.frameDuration = CMTime(value: 1, timescale: Int32(frameRate))
+            } else {
+                videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+            }
+            
+            let instruction = AVMutableVideoCompositionInstruction()
+            instruction.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
+            
+            let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
+            if let transform = preferredTransform {
+                layerInstruction.setTransform(transform, at: .zero)
+            }
+            
+            instruction.layerInstructions = [layerInstruction]
+            videoComposition.instructions = [instruction]
+            
+            exportSession.videoComposition = videoComposition
+        }
         
         exportSession.outputURL = outputURL
+        // 设置输出格式和编码器
         exportSession.outputFileType = outputFormat.avFileType
         exportSession.shouldOptimizeForNetworkUse = true
+        
+        // 配置输出选项
+        if useHEVC {
+            // 对于 HEVC，创建新的视频合成配置
+            let hevcComposition = AVMutableVideoComposition()
+            hevcComposition.renderSize = naturalSize ?? videoTrack.naturalSize
+            if let frameRate = nominalFrameRate {
+                hevcComposition.frameDuration = CMTime(value: 1, timescale: Int32(frameRate))
+            } else {
+                hevcComposition.frameDuration = CMTime(value: 1, timescale: 30)
+            }
+
+            let instruction = AVMutableVideoCompositionInstruction()
+            instruction.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
+            
+            let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
+            if let transform = preferredTransform {
+                layerInstruction.setTransform(transform, at: .zero)
+            }
+            
+            instruction.layerInstructions = [layerInstruction]
+            hevcComposition.instructions = [instruction]
+            
+            exportSession.videoComposition = hevcComposition
+        }
         
         let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { t in
             Task { @MainActor in

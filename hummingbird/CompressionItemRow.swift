@@ -232,13 +232,20 @@ struct CompressionItemRow: View {
                             return
                         }
                         
-                        // 对于 HEVC 视频，需要确保文件格式兼容
-                        // 创建一个兼容的副本
+                        // 创建一个兼容的副本，保持原始扩展名
+                        let fileExtension = url.pathExtension.isEmpty ? "mp4" : url.pathExtension
                         let compatibleURL = URL(fileURLWithPath: NSTemporaryDirectory())
-                            .appendingPathComponent("save_\(UUID().uuidString).mov")
+                            .appendingPathComponent("save_\(UUID().uuidString).\(fileExtension)")
                         
-                        // 复制文件并确保使用 .mov 扩展名（iOS 相册更兼容）
+                        // 复制文件
                         try? FileManager.default.copyItem(at: url, to: compatibleURL)
+                        
+                        // 使用 AVAsset 获取视频信息
+                        let asset = AVURLAsset(url: compatibleURL)
+                        if asset.tracks(withMediaType: .video).isEmpty {
+                            print("❌ 无效的视频文件")
+                            return
+                        }
                         
                         PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: compatibleURL)
                         

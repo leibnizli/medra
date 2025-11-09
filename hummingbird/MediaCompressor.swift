@@ -229,10 +229,14 @@ final class MediaCompressor {
         progressHandler: @escaping (Float) -> Void,
         completion: @escaping (Result<URL, Error>) -> Void
     ) -> AVAssetExportSession? {
-        // 使用 FFmpeg 进行视频压缩
+        // 使用 FFmpeg 进行视频压缩，保持原始格式
+        let outputExtension = sourceURL.pathExtension.isEmpty ? 
+            (outputFileType == .mov ? "mov" : "mp4") : 
+            sourceURL.pathExtension
+            
         let outputURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("compressed_\(UUID().uuidString)")
-            .appendingPathExtension("mp4")
+            .appendingPathExtension(outputExtension)
         
         FFmpegVideoCompressor.compressVideo(
             inputURL: sourceURL,
@@ -415,21 +419,56 @@ final class MediaCompressor {
         // 删除已存在的文件
         try? FileManager.default.removeItem(at: outputURL)
         
-        guard let assetWriter = try? AVAssetWriter(outputURL: outputURL, fileType: .mp4) else {
+        // 根据文件扩展名确定输出类型
+        let fileType: AVFileType
+        switch outputURL.pathExtension.lowercased() {
+        case "mov":
+            fileType = .mov
+        case "m4v":
+            fileType = .m4v
+        default:
+            fileType = .mp4
+        }
+        
+        guard let assetWriter = try? AVAssetWriter(outputURL: outputURL, fileType: fileType) else {
             throw MediaCompressionError.videoExportFailed
         }
         
         // 配置视频输出设置
+        var videoCodec: AVVideoCodecType
+        var compressionProperties: [String: Any] = [
+            AVVideoAverageBitRateKey: bitrate,
+            AVVideoMaxKeyFrameIntervalKey: 30
+        ]
+        
+        // 根据输出格式选择合适的编码器
+        switch fileType {
+        case .mov:
+            // MOV 格式支持 H.264 和 ProRes
+            if bitrate > 50_000_000 { // 高比特率使用 ProRes
+                videoCodec = .proRes422
+            } else {
+                videoCodec = .h264
+                compressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel
+                compressionProperties[AVVideoH264EntropyModeKey] = AVVideoH264EntropyModeCABAC
+            }
+        case .m4v:
+            // M4V 格式通常使用 H.264
+            videoCodec = .h264
+            compressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel
+            compressionProperties[AVVideoH264EntropyModeKey] = AVVideoH264EntropyModeCABAC
+        default:
+            // MP4 默认使用 H.264
+            videoCodec = .h264
+            compressionProperties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel
+            compressionProperties[AVVideoH264EntropyModeKey] = AVVideoH264EntropyModeCABAC
+        }
+        
         let videoOutputSettings: [String: Any] = [
-            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoCodecKey: videoCodec,
             AVVideoWidthKey: videoSize.width,
             AVVideoHeightKey: videoSize.height,
-            AVVideoCompressionPropertiesKey: [
-                AVVideoAverageBitRateKey: bitrate,
-                AVVideoMaxKeyFrameIntervalKey: 30,
-                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
-                AVVideoH264EntropyModeKey: AVVideoH264EntropyModeCABAC
-            ]
+            AVVideoCompressionPropertiesKey: compressionProperties
         ]
         
         let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoOutputSettings)
@@ -444,11 +483,16 @@ final class MediaCompressor {
         // 处理音频轨道（如果有）
         var audioInput: AVAssetWriterInput?
         if let audioTrack = asset.tracks(withMediaType: .audio).first {
+            // 根据输出格式选择音频编码器
+            let (audioFormat, audioBitrate) = fileType == .mov ? 
+                (kAudioFormatLinearPCM, 1411200) : // MOV 使用无损音频
+                (kAudioFormatMPEG4AAC, 256000)    // MP4/M4V 使用 AAC
+                
             let audioOutputSettings: [String: Any] = [
-                AVFormatIDKey: kAudioFormatMPEG4AAC,
-                AVSampleRateKey: 44100,
+                AVFormatIDKey: audioFormat,
+                AVSampleRateKey: 48000,
                 AVNumberOfChannelsKey: 2,
-                AVEncoderBitRateKey: 128000
+                AVEncoderBitRateKey: audioBitrate
             ]
             
             let audioWriterInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioOutputSettings)
