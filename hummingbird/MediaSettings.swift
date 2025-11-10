@@ -30,14 +30,14 @@ enum ResizeMode: String, CaseIterable, Identifiable {
 enum ImageResolution: String, CaseIterable, Identifiable {
     case wallpaper4K = "3840×2160(4K)"
     case wallpaper2K = "2560×1440(2K)"
-    case phoneWallpaperMax = "1242×2688"
-    case phoneWallpaper = "1080×1920"
     case wallpaperHD = "1920×1080"
     case bannerLarge = "1920×600"
-    case socialVertical = "1080×1350"
-    case bannerMedium = "1200×400"
-    case socialSquare = "1080×1080"
     case videoCover720p = "1280×720"
+    case phoneWallpaperMax = "1242×2688"
+    case bannerMedium = "1200×400"
+    case phoneWallpaper = "1080×1920"
+    case socialVertical = "1080×1350"
+    case socialSquare = "1080×1080"
     case custom = "Custom"
     
     var id: String { rawValue }
@@ -46,14 +46,14 @@ enum ImageResolution: String, CaseIterable, Identifiable {
         switch self {
         case .wallpaper4K: return (3840, 2160)
         case .wallpaper2K: return (2560, 1440)
-        case .phoneWallpaperMax: return (1242, 2688)
-        case .phoneWallpaper: return (1080, 1920)
         case .wallpaperHD: return (1920, 1080)
         case .bannerLarge: return (1920, 600)
-        case .socialVertical: return (1080, 1350)
-        case .bannerMedium: return (1200, 400)
-        case .socialSquare: return (1080, 1080)
         case .videoCover720p: return (1280, 720)
+        case .phoneWallpaperMax: return (1242, 2688)
+        case .bannerMedium: return (1200, 400)
+        case .phoneWallpaper: return (1080, 1920)
+        case .socialVertical: return (1080, 1350)
+        case .socialSquare: return (1080, 1080)
         case .custom: return nil
         }
     }

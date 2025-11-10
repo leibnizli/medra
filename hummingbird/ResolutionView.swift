@@ -130,7 +130,7 @@ struct ResolutionView: View {
                                 Text("Width")
                                     .font(.system(size: 15))
                                     .foregroundStyle(.secondary)
-                                    .frame(width: 40, alignment: .leading)
+                                    .frame(width: 45, alignment: .leading)
                                 TextField("1920", value: $settings.customWidth, formatter: NumberFormatter.noGrouping)
                                     .keyboardType(.numberPad)
                                     .textFieldStyle(.roundedBorder)
@@ -144,7 +144,7 @@ struct ResolutionView: View {
                                 Text("Height")
                                     .font(.system(size: 15))
                                     .foregroundStyle(.secondary)
-                                    .frame(width: 40, alignment: .leading)
+                                    .frame(width: 48, alignment: .leading)
                                 TextField("1080", value: $settings.customHeight, formatter: NumberFormatter.noGrouping)
                                     .keyboardType(.numberPad)
                                     .textFieldStyle(.roundedBorder)
@@ -154,7 +154,6 @@ struct ResolutionView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                     }
                     
