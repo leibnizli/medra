@@ -157,7 +157,7 @@ struct FormatView: View {
                         Image(systemName: "photo.stack")
                             .font(.system(size: 60))
                             .foregroundStyle(.secondary)
-                        Text("Select photos or videos for format conversion")
+                        Text("Convert media format")
                             .font(.headline)
                             .foregroundStyle(.secondary)
                     }

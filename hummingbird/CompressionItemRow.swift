@@ -37,7 +37,7 @@ struct CompressionItemRow: View {
                     HStack {
                         Image(systemName: item.isVideo ? "video.circle.fill" : "photo.circle.fill")
                             .foregroundStyle(item.isVideo ? .blue : .green)
-                        Text(item.isVideo ? "视频" : "图片")
+                        Text(item.isVideo ? "Video" : "Image")
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
@@ -112,46 +112,46 @@ struct CompressionItemRow: View {
                     // 文件大小和压缩信息
                     if item.status == .completed {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("大小: \(item.formatBytes(item.originalSize)) → \(item.formatBytes(item.compressedSize))")
+                            Text("Size: \(item.formatBytes(item.originalSize)) → \(item.formatBytes(item.compressedSize))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             
                             if let resolution = item.originalResolution {
-                                Text("分辨率: \(item.formatResolution(resolution))")
+                                Text("Resolution: \(item.formatResolution(resolution))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             
                             // 显示视频时长（仅视频）
                             if item.isVideo {
-                                Text("时长: \(item.formatDuration(item.duration))")
+                                Text("Duration: \(item.formatDuration(item.duration))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             
                             HStack {
-                                Text("减少: \(item.formatBytes(item.savedSize))")
+                                Text("Saved: \(item.formatBytes(item.savedSize))")
                                     .font(.caption)
                                     .foregroundStyle(.green)
                                 Spacer()
-                                Text("压缩率: \(String(format: "%.1f%%", item.compressionRatio * 100))")
+                                Text("Ratio: \(String(format: "%.1f%%", item.compressionRatio * 100))")
                                     .font(.caption)
                                     .foregroundStyle(.blue)
                             }
                         }
                     } else {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("大小: \(item.formatBytes(item.originalSize))")
+                            Text("Size: \(item.formatBytes(item.originalSize))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             if let resolution = item.originalResolution {
-                                Text("分辨率: \(item.formatResolution(resolution))")
+                                Text("Resolution: \(item.formatResolution(resolution))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                             // 显示视频时长（仅视频）
                             if item.isVideo {
-                                Text("时长: \(item.formatDuration(item.duration))")
+                                Text("Duration: \(item.formatDuration(item.duration))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -180,7 +180,7 @@ struct CompressionItemRow: View {
                     HStack(spacing: 6) {
                         Image(systemName: "photo.badge.arrow.down")
                             .font(.subheadline)
-                        Text("保存到相册")
+                        Text("Save to Photos")
                             .font(.subheadline)
                     }
                     .frame(maxWidth: .infinity)
@@ -189,7 +189,7 @@ struct CompressionItemRow: View {
             }
         }
         .padding(.vertical, 8)
-        .toast(isShowing: $showingToast, message: "保存成功")
+        .toast(isShowing: $showingToast, message: "Saved Successfully")
     }
     
     @ViewBuilder
@@ -199,7 +199,7 @@ struct CompressionItemRow: View {
             HStack(spacing: 3) {
                 ProgressView()
                     .scaleEffect(0.7)
-                Text("加载中")
+                Text("Loading")
             }
             .font(.caption)
             .foregroundStyle(.blue)
@@ -207,7 +207,7 @@ struct CompressionItemRow: View {
         case .pending:
             HStack(spacing: 3) {
                 Image(systemName: "clock")
-                Text("等待中")
+                Text("Pending")
             }
             .font(.caption)
             .foregroundStyle(.orange)
@@ -215,7 +215,7 @@ struct CompressionItemRow: View {
         case .compressing:
             HStack(spacing: 3) {
                 Image(systemName: "arrow.triangle.2.circlepath")
-                Text("压缩中")
+                Text("Compressing")
             }
             .font(.caption)
             .foregroundStyle(.blue)
@@ -223,7 +223,7 @@ struct CompressionItemRow: View {
         case .processing:
             HStack(spacing: 3) {
                 Image(systemName: "arrow.triangle.2.circlepath")
-                Text("处理中")
+                Text("Processing")
             }
             .font(.caption)
             .foregroundStyle(.blue)
@@ -231,7 +231,7 @@ struct CompressionItemRow: View {
         case .completed:
             HStack(spacing: 3) {
                 Image(systemName: "checkmark.circle.fill")
-                Text("完成")
+                Text("Completed")
             }
             .font(.caption)
             .foregroundStyle(.green)
@@ -239,7 +239,7 @@ struct CompressionItemRow: View {
         case .failed:
             HStack(spacing: 3) {
                 Image(systemName: "xmark.circle.fill")
-                Text("失败")
+                Text("Failed")
             }
             .font(.caption)
             .foregroundStyle(.red)

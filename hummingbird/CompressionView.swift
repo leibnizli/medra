@@ -92,7 +92,7 @@ struct CompressionView: View {
                         Image(systemName: "photo.stack")
                             .font(.system(size: 60))
                             .foregroundStyle(.secondary)
-                        Text("Select photos or videos to start compression")
+                        Text("Select media to compress")
                             .font(.headline)
                             .foregroundStyle(.secondary)
                     }

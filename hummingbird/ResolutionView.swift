@@ -196,7 +196,7 @@ struct ResolutionView: View {
                         Image(systemName: "photo.stack")
                             .font(.system(size: 60))
                             .foregroundStyle(.secondary)
-                        Text("Select photos or videos to adjust resolution")
+                        Text("Adjust media resolution")
                             .font(.headline)
                             .foregroundStyle(.secondary)
                     }
