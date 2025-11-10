@@ -89,7 +89,7 @@ struct ResolutionView: View {
                             .frame(height: 44)
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(mediaItems.isEmpty || isProcessing || hasLoadingItems ? .gray : .orange)
+                        .tint(mediaItems.isEmpty || isProcessing || hasLoadingItems ? .gray : .green)
                         .disabled(mediaItems.isEmpty || isProcessing || hasLoadingItems)
                     }
                     .padding(.horizontal, 16)

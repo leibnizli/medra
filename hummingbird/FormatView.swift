@@ -72,7 +72,7 @@ struct FormatView: View {
                             .frame(height: 44)
                         }
                         .buttonStyle(.borderedProminent)
-                        .tint(mediaItems.isEmpty || isConverting || hasLoadingItems ? .gray : .orange)
+                        .tint(mediaItems.isEmpty || isConverting || hasLoadingItems ? .gray : .green)
                         .disabled(mediaItems.isEmpty || isConverting || hasLoadingItems)
                     }
                     .padding(.horizontal, 16)
