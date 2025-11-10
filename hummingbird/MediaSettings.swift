@@ -134,17 +134,70 @@ enum CRFQualityMode: String, CaseIterable, Identifiable {
 // MARK: - 压缩设置
 class CompressionSettings: ObservableObject {
     // 图片设置
-    @Published var heicQuality: Double = 0.85  // HEIC 质量
-    @Published var jpegQuality: Double = 0.75  // JPEG 质量
-    @Published var webpQuality: Double = 0.80  // WebP 质量
-    @Published var preferHEIC: Bool = false  // 优先使用 HEIC 格式
+    @Published var heicQuality: Double = 0.85 {
+        didSet { UserDefaults.standard.set(heicQuality, forKey: "heicQuality") }
+    }
+    @Published var jpegQuality: Double = 0.75 {
+        didSet { UserDefaults.standard.set(jpegQuality, forKey: "jpegQuality") }
+    }
+    @Published var webpQuality: Double = 0.80 {
+        didSet { UserDefaults.standard.set(webpQuality, forKey: "webpQuality") }
+    }
+    @Published var preferHEIC: Bool = false {
+        didSet { UserDefaults.standard.set(preferHEIC, forKey: "preferHEIC") }
+    }
     
     // 视频设置 - FFmpeg 参数
-    @Published var videoCodec: VideoCodec = .h265  // 视频编码器 - 默认使用 H.265/HEVC
-    @Published var videoQualityPreset: VideoQualityPreset = .medium  // 质量预设
-    @Published var crfQualityMode: CRFQualityMode = .high  // CRF 质量模式
-    @Published var customCRF: Int = 23  // 自定义 CRF 值 (0-51, 越小质量越好)
-    @Published var useHardwareAcceleration: Bool = true  // 使用硬件加速
+    @Published var videoCodec: VideoCodec = .h265 {
+        didSet { UserDefaults.standard.set(videoCodec.rawValue, forKey: "videoCodec") }
+    }
+    @Published var videoQualityPreset: VideoQualityPreset = .medium {
+        didSet { UserDefaults.standard.set(videoQualityPreset.rawValue, forKey: "videoQualityPreset") }
+    }
+    @Published var crfQualityMode: CRFQualityMode = .high {
+        didSet { UserDefaults.standard.set(crfQualityMode.rawValue, forKey: "crfQualityMode") }
+    }
+    @Published var customCRF: Int = 23 {
+        didSet { UserDefaults.standard.set(customCRF, forKey: "customCRF") }
+    }
+    @Published var useHardwareAcceleration: Bool = true {
+        didSet { UserDefaults.standard.set(useHardwareAcceleration, forKey: "useHardwareAcceleration") }
+    }
+    
+    init() {
+        // 从 UserDefaults 加载保存的设置
+        if UserDefaults.standard.object(forKey: "heicQuality") != nil {
+            self.heicQuality = UserDefaults.standard.double(forKey: "heicQuality")
+        }
+        if UserDefaults.standard.object(forKey: "jpegQuality") != nil {
+            self.jpegQuality = UserDefaults.standard.double(forKey: "jpegQuality")
+        }
+        if UserDefaults.standard.object(forKey: "webpQuality") != nil {
+            self.webpQuality = UserDefaults.standard.double(forKey: "webpQuality")
+        }
+        if UserDefaults.standard.object(forKey: "preferHEIC") != nil {
+            self.preferHEIC = UserDefaults.standard.bool(forKey: "preferHEIC")
+        }
+        
+        if let codecRaw = UserDefaults.standard.string(forKey: "videoCodec"),
+           let codec = VideoCodec(rawValue: codecRaw) {
+            self.videoCodec = codec
+        }
+        if let presetRaw = UserDefaults.standard.string(forKey: "videoQualityPreset"),
+           let preset = VideoQualityPreset(rawValue: presetRaw) {
+            self.videoQualityPreset = preset
+        }
+        if let modeRaw = UserDefaults.standard.string(forKey: "crfQualityMode"),
+           let mode = CRFQualityMode(rawValue: modeRaw) {
+            self.crfQualityMode = mode
+        }
+        if UserDefaults.standard.object(forKey: "customCRF") != nil {
+            self.customCRF = UserDefaults.standard.integer(forKey: "customCRF")
+        }
+        if UserDefaults.standard.object(forKey: "useHardwareAcceleration") != nil {
+            self.useHardwareAcceleration = UserDefaults.standard.bool(forKey: "useHardwareAcceleration")
+        }
+    }
     
     // 获取 CRF 值
     func getCRFValue() -> Int {
@@ -228,6 +281,67 @@ enum VideoResolution: String, CaseIterable, Identifiable {
         case .hd: return CGSize(width: 1280, height: 720)
         case .sd: return CGSize(width: 854, height: 480)
         case .custom: return nil
+        }
+    }
+}
+
+// MARK: - 分辨率设置
+class ResolutionSettings: ObservableObject {
+    @Published var targetResolution: ImageResolution = .wallpaperHD {
+        didSet { UserDefaults.standard.set(targetResolution.rawValue, forKey: "targetResolution") }
+    }
+    @Published var customWidth: Int = 1920 {
+        didSet { UserDefaults.standard.set(customWidth, forKey: "customWidth") }
+    }
+    @Published var customHeight: Int = 1080 {
+        didSet { UserDefaults.standard.set(customHeight, forKey: "customHeight") }
+    }
+    @Published var resizeMode: ResizeMode = .cover {
+        didSet { UserDefaults.standard.set(resizeMode.rawValue, forKey: "resizeMode") }
+    }
+    
+    init() {
+        // 从 UserDefaults 加载保存的设置
+        if let resolutionRaw = UserDefaults.standard.string(forKey: "targetResolution"),
+           let resolution = ImageResolution(rawValue: resolutionRaw) {
+            self.targetResolution = resolution
+        }
+        if UserDefaults.standard.object(forKey: "customWidth") != nil {
+            self.customWidth = UserDefaults.standard.integer(forKey: "customWidth")
+        }
+        if UserDefaults.standard.object(forKey: "customHeight") != nil {
+            self.customHeight = UserDefaults.standard.integer(forKey: "customHeight")
+        }
+        if let modeRaw = UserDefaults.standard.string(forKey: "resizeMode"),
+           let mode = ResizeMode(rawValue: modeRaw) {
+            self.resizeMode = mode
+        }
+    }
+}
+
+// MARK: - 格式转换设置
+class FormatSettings: ObservableObject {
+    @Published var targetImageFormat: ImageFormat = .jpeg {
+        didSet { UserDefaults.standard.set(targetImageFormat.rawValue, forKey: "targetImageFormat") }
+    }
+    @Published var targetVideoFormat: String = "mp4" {
+        didSet { UserDefaults.standard.set(targetVideoFormat, forKey: "targetVideoFormat") }
+    }
+    @Published var useHEVC: Bool = true {
+        didSet { UserDefaults.standard.set(useHEVC, forKey: "useHEVC") }
+    }
+    
+    init() {
+        // 从 UserDefaults 加载保存的设置
+        if let formatRaw = UserDefaults.standard.string(forKey: "targetImageFormat"),
+           let format = ImageFormat(rawValue: formatRaw) {
+            self.targetImageFormat = format
+        }
+        if let videoFormat = UserDefaults.standard.string(forKey: "targetVideoFormat") {
+            self.targetVideoFormat = videoFormat
+        }
+        if UserDefaults.standard.object(forKey: "useHEVC") != nil {
+            self.useHEVC = UserDefaults.standard.bool(forKey: "useHEVC")
         }
     }
 }

@@ -28,10 +28,7 @@ struct ResolutionView: View {
     @State private var showingFilePicker = false
     @State private var showingPhotoPicker = false
     @State private var showingSettings = false
-    @State private var targetResolution: ImageResolution = .wallpaperHD
-    @State private var customWidth: Int = 1920
-    @State private var customHeight: Int = 1080
-    @State private var resizeMode: ResizeMode = .cover
+    @StateObject private var settings = ResolutionSettings()
     
     // 检查是否有媒体项正在加载
     private var hasLoadingItems: Bool {
@@ -138,10 +135,10 @@ struct ResolutionView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 ResolutionSettingsSheet(
-                    targetResolution: $targetResolution,
-                    customWidth: $customWidth,
-                    customHeight: $customHeight,
-                    resizeMode: $resizeMode
+                    targetResolution: $settings.targetResolution,
+                    customWidth: $settings.customWidth,
+                    customHeight: $settings.customHeight,
+                    resizeMode: $settings.resizeMode
                 )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
@@ -584,7 +581,7 @@ struct ResolutionView: View {
         
         // 获取目标尺寸并进行智能裁剪和缩放
         if let (width, height) = getTargetSize() {
-            image = resizeAndCropImage(image, targetWidth: width, targetHeight: height, mode: resizeMode)
+            image = resizeAndCropImage(image, targetWidth: width, targetHeight: height, mode: settings.resizeMode)
         }
         
         // 使用系统原生编码（不调用压缩），保持高质量
@@ -805,7 +802,7 @@ struct ResolutionView: View {
         // 设置视频分辨率
         if let (width, height) = getTargetSize() {
             let size = CGSize(width: width, height: height)
-            exportSession.videoComposition = createVideoComposition(asset: asset, targetSize: size, mode: resizeMode)
+            exportSession.videoComposition = createVideoComposition(asset: asset, targetSize: size, mode: settings.resizeMode)
         }
         
         let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { t in
@@ -943,9 +940,9 @@ struct ResolutionView: View {
     }
     
     private func getTargetSize() -> (Int, Int)? {
-        if targetResolution == .custom {
-            return (customWidth, customHeight)
-        } else if let size = targetResolution.size {
+        if settings.targetResolution == .custom {
+            return (settings.customWidth, settings.customHeight)
+        } else if let size = settings.targetResolution.size {
             return (size.width, size.height)
         }
         return nil

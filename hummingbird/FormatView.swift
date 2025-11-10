@@ -15,12 +15,10 @@ struct FormatView: View {
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var mediaItems: [MediaItem] = []
     @State private var isConverting = false
-    @State private var targetImageFormat: ImageFormat = .jpeg
-    @State private var targetVideoFormat: VideoFormat = .mp4
-    @State private var useHEVC: Bool = true // 默认使用 HEVC
     @State private var showingPhotoPicker = false
     @State private var showingFilePicker = false
     @State private var showingSettings = false
+    @StateObject private var settings = FormatSettings()
     
     // 检查是否有媒体项正在加载
     private var hasLoadingItems: Bool {
@@ -126,11 +124,7 @@ struct FormatView: View {
             }
         }
         .sheet(isPresented: $showingSettings) {
-            FormatSettingsView(
-                targetImageFormat: $targetImageFormat,
-                targetVideoFormat: $targetVideoFormat,
-                useHEVC: $useHEVC
-            )
+            FormatSettingsView(settings: settings)
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
@@ -506,9 +500,8 @@ struct FormatView: View {
             return
         }
         
-        // 使用 CGImageSource 来保留元数据
-        guard let imageSource = CGImageSourceCreateWithData(originalData as CFData, nil),
-              let image = UIImage(data: originalData) else {
+        // 加载图片并修正方向
+        guard var image = UIImage(data: originalData) else {
             await MainActor.run {
                 item.status = .failed
                 item.errorMessage = "无法解码图片"
@@ -516,8 +509,8 @@ struct FormatView: View {
             return
         }
         
-        // 获取原始图片的元数据
-        let imageProperties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any]
+        // 修正图片方向，避免旋转问题
+        image = image.fixOrientation()
         
         await MainActor.run {
             item.progress = 0.3
@@ -525,7 +518,7 @@ struct FormatView: View {
         
         // 转换为目标格式
         let convertedData: Data?
-        let outputFormat = targetImageFormat
+        let outputFormat = settings.targetImageFormat
         
         switch outputFormat {
         case .jpeg:
@@ -540,10 +533,6 @@ struct FormatView: View {
                 kCGImageDestinationLossyCompressionQuality: 1.0,
                 kCGImageDestinationOptimizeColorForSharing: true
             ]
-            
-            if let properties = imageProperties {
-                CGImageDestinationSetProperties(destination, properties as CFDictionary)
-            }
             
             if let cgImage = image.cgImage {
                 CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
@@ -567,10 +556,6 @@ struct FormatView: View {
             let options: [CFString: Any] = [
                 kCGImageDestinationOptimizeColorForSharing: true
             ]
-            
-            if let properties = imageProperties {
-                CGImageDestinationSetProperties(destination, properties as CFDictionary)
-            }
             
             if let cgImage = image.cgImage {
                 CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
@@ -603,10 +588,6 @@ struct FormatView: View {
                     kCGImageDestinationLossyCompressionQuality: 1.0,
                     kCGImageDestinationOptimizeColorForSharing: true
                 ]
-                
-                if let properties = imageProperties {
-                    CGImageDestinationSetProperties(destination, properties as CFDictionary)
-                }
                 
                 if let cgImage = image.cgImage {
                     CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
@@ -669,7 +650,7 @@ struct FormatView: View {
         
         // 选择合适的预设
         let presetName: String
-        if useHEVC && AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality) {
+        if settings.useHEVC && AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality) {
             presetName = AVAssetExportPresetHEVCHighestQuality
         } else {
             presetName = AVAssetExportPresetHighestQuality
@@ -684,14 +665,19 @@ struct FormatView: View {
             return
         }
         
-        let outputFormat = targetVideoFormat
-        let fileExtension = outputFormat.fileExtension
+        let fileExtension = settings.targetVideoFormat
         let outputURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("converted_\(UUID().uuidString)")
             .appendingPathExtension(fileExtension)
         
         exportSession.outputURL = outputURL
-        exportSession.outputFileType = outputFormat.avFileType
+        exportSession.outputFileType = {
+            switch fileExtension {
+            case "mov": return .mov
+            case "m4v": return .m4v
+            default: return .mp4
+            }
+        }()
         exportSession.shouldOptimizeForNetworkUse = true
         
         // 使用 AVFoundation 自动处理旋转和方向
@@ -734,7 +720,7 @@ struct FormatView: View {
                 item.status = .completed
                 item.progress = 1.0
                 
-                print("✅ [格式转换] 视频 -> \(outputFormat.rawValue) - 大小: \(item.compressedSize) bytes")
+                print("✅ [格式转换] 视频 -> \(fileExtension.uppercased()) - 大小: \(item.compressedSize) bytes")
             default:
                 item.status = .failed
                 item.errorMessage = exportSession.error?.localizedDescription ?? "转换失败"
@@ -743,35 +729,10 @@ struct FormatView: View {
     }
 }
 
-// 视频格式枚举
-enum VideoFormat: String, CaseIterable {
-    case mp4 = "MP4"
-    case mov = "MOV"
-    case m4v = "M4V"
-    
-    var fileExtension: String {
-        switch self {
-        case .mp4: return "mp4"
-        case .mov: return "mov"
-        case .m4v: return "m4v"
-        }
-    }
-    
-    var avFileType: AVFileType {
-        switch self {
-        case .mp4: return .mp4
-        case .mov: return .mov
-        case .m4v: return .m4v
-        }
-    }
-}
-
 // MARK: - 格式转换设置视图
 struct FormatSettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @Binding var targetImageFormat: ImageFormat
-    @Binding var targetVideoFormat: VideoFormat
-    @Binding var useHEVC: Bool
+    @ObservedObject var settings: FormatSettings
     
     var body: some View {
         NavigationView {
@@ -780,12 +741,14 @@ struct FormatSettingsView: View {
                     HStack {
                         Text("目标图片格式")
                         Spacer()
-                        Picker("目标图片格式", selection: $targetImageFormat) {
+                        Picker("", selection: $settings.targetImageFormat) {
                             Text("JPEG").tag(ImageFormat.jpeg)
                             Text("PNG").tag(ImageFormat.png)
+                            //heif 不需要
+                            //Text("HEIC").tag(ImageFormat.heic)
+                            Text("WebP").tag(ImageFormat.webp)
                         }
-                        .pickerStyle(.segmented)
-                        .frame(width: 150)
+                        .pickerStyle(.menu)
                     }
                 } header: {
                     Text("图片格式设置")
@@ -795,17 +758,17 @@ struct FormatSettingsView: View {
                     HStack {
                         Text("目标视频格式")
                         Spacer()
-                        Picker("目标视频格式", selection: $targetVideoFormat) {
-                            Text("MP4").tag(VideoFormat.mp4)
-                            Text("MOV").tag(VideoFormat.mov)
-                            Text("M4V").tag(VideoFormat.m4v)
+                        Picker("目标视频格式", selection: $settings.targetVideoFormat) {
+                            Text("MP4").tag("mp4")
+                            Text("MOV").tag("mov")
+                            Text("M4V").tag("m4v")
                         }
                         .pickerStyle(.segmented)
                         .frame(width: 200)
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
-                        Toggle("使用 HEVC (H.265) 编码", isOn: $useHEVC)
+                        Toggle("使用 HEVC (H.265) 编码", isOn: $settings.useHEVC)
                         
                         Text("HEVC 编码可以在保持相同质量的情况下减小文件大小，但兼容性可能不如 H.264")
                             .font(.caption)
