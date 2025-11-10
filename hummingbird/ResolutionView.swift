@@ -2,7 +2,7 @@
 //  ResolutionView.swift
 //  hummingbird
 //
-//  修改分辨率视图
+//  Resolution Modification View
 //
 
 import SwiftUI
@@ -21,7 +21,7 @@ extension NumberFormatter {
     }
 }
 
-// 扩展：隐藏键盘
+// Extension: Hide Keyboard
 extension UIApplication {
     func hideKeyboard() {
         sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
@@ -36,7 +36,7 @@ struct ResolutionView: View {
     @State private var showingPhotoPicker = false
     @StateObject private var settings = ResolutionSettings()
     
-    // 检查是否有媒体项正在加载
+    // Check if any media items are loading
     private var hasLoadingItems: Bool {
         mediaItems.contains { $0.status == .loading }
     }
@@ -44,23 +44,23 @@ struct ResolutionView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // 顶部选择按钮
+                // Top Selection Button
                 VStack(spacing: 0) {
                     HStack(spacing: 12) {
-                        // 左侧：下拉菜单选择来源
+                        // Left: Source Dropdown Menu
                         Menu {
                             Button(action: { showingPhotoPicker = true }) {
-                                Label("从相册选择", systemImage: "photo.on.rectangle.angled")
+                                Label("Select from Photos", systemImage: "photo.on.rectangle.angled")
                             }
                             
                             Button(action: { showingFilePicker = true }) {
-                                Label("从文件选择", systemImage: "folder.fill")
+                                Label("Select from Files", systemImage: "folder.fill")
                             }
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "plus.circle.fill")
                                     .font(.system(size: 16, weight: .semibold))
-                                Text("添加文件")
+                                Text("Add File")
                                     .font(.system(size: 15, weight: .semibold))
                                 Image(systemName: "chevron.down")
                                     .font(.system(size: 12, weight: .semibold))
@@ -82,7 +82,7 @@ struct ResolutionView: View {
                                     Image(systemName: "arrow.up.left.and.arrow.down.right")
                                         .font(.system(size: 16, weight: .bold))
                                 }
-                                Text(isProcessing ? "处理中" : hasLoadingItems ? "加载中" : "开始调整")
+                                Text(isProcessing ? "Processing" : hasLoadingItems ? "Loading" : "Start")
                                     .font(.system(size: 15, weight: .bold))
                             }
                             .frame(maxWidth: .infinity)
@@ -106,7 +106,7 @@ struct ResolutionView: View {
                 VStack(spacing: 0) {
                     // 目标分辨率选择
                     HStack {
-                        Text("目标分辨率")
+                        Text("Target Resolution")
                             .font(.system(size: 15))
                             .foregroundStyle(.primary)
                         Spacer()
@@ -127,7 +127,7 @@ struct ResolutionView: View {
                         
                         HStack(spacing: 12) {
                             HStack {
-                                Text("宽度")
+                                Text("Width")
                                     .font(.system(size: 15))
                                     .foregroundStyle(.secondary)
                                     .frame(width: 40, alignment: .leading)
@@ -141,7 +141,7 @@ struct ResolutionView: View {
                             }
                             
                             HStack {
-                                Text("高度")
+                                Text("Height")
                                     .font(.system(size: 15))
                                     .foregroundStyle(.secondary)
                                     .frame(width: 40, alignment: .leading)
@@ -164,7 +164,7 @@ struct ResolutionView: View {
                     // 缩放模式选择
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("缩放模式")
+                            Text("Scale Mode")
                                 .font(.system(size: 15))
                                 .foregroundStyle(.primary)
                             Spacer()
@@ -196,7 +196,7 @@ struct ResolutionView: View {
                         Image(systemName: "photo.stack")
                             .font(.system(size: 60))
                             .foregroundStyle(.secondary)
-                        Text("选择图片或视频调整分辨率")
+                        Text("Select photos or videos to adjust resolution")
                             .font(.headline)
                             .foregroundStyle(.secondary)
                     }
@@ -217,7 +217,7 @@ struct ResolutionView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("修改分辨率")
+            .navigationTitle("Adjust Resolution")
             .navigationBarTitleDisplayMode(.inline)
         }
         .onTapGesture {
@@ -243,7 +243,7 @@ struct ResolutionView: View {
                     let urls = try result.get()
                     await loadFileURLs(urls)
                 } catch {
-                    print("文件选择错误: \(error.localizedDescription)")
+                    print("File selection error: \(error.localizedDescription)")
                 }
             }
         }
@@ -542,7 +542,7 @@ struct ResolutionView: View {
                 mediaItem.duration = durationSeconds
             }
         } catch {
-            print("加载视频轨道信息失败: \(error)")
+            print("Failed to load video track info: \(error)")
         }
         
         // 异步生成缩略图
@@ -588,7 +588,7 @@ struct ResolutionView: View {
                 item.thumbnailImage = thumbnail
             }
         } catch {
-            print("生成视频缩略图失败: \(error)")
+            print("Failed to generate video thumbnail: \(error)")
             // 设置默认视频图标
             await MainActor.run {
                 item.thumbnailImage = UIImage(systemName: "video.fill")
@@ -639,7 +639,7 @@ struct ResolutionView: View {
         guard let originalData = item.originalData else {
             await MainActor.run {
                 item.status = .failed
-                item.errorMessage = "无法加载原始图片"
+                item.errorMessage = "Unable to load original image"
             }
             return
         }
@@ -647,7 +647,7 @@ struct ResolutionView: View {
         guard var image = UIImage(data: originalData) else {
             await MainActor.run {
                 item.status = .failed
-                item.errorMessage = "无法解码图片"
+                item.errorMessage = "Unable to decode image"
             }
             return
         }
@@ -671,14 +671,12 @@ struct ResolutionView: View {
             guard let pngData = image.pngData() else {
                 await MainActor.run {
                     item.status = .failed
-                    item.errorMessage = "无法编码 PNG 图片"
+                    item.errorMessage = "Unable to encode PNG image"
                 }
                 return
             }
             resizedData = pngData
-            print("✅ [分辨率调整] PNG 编码成功 - 大小: \(resizedData.count) bytes")
-            
-        case .heic:
+                print("✅ [Resolution Adjustment] PNG encoding successful - Size: \(resizedData.count) bytes")        case .heic:
             // HEIC 格式
             if #available(iOS 11.0, *) {
                 let mutableData = NSMutableData()
@@ -688,18 +686,18 @@ struct ResolutionView: View {
                     CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
                     if CGImageDestinationFinalize(destination) {
                         resizedData = mutableData as Data
-                        print("✅ [分辨率调整] HEIC 编码成功 - 大小: \(resizedData.count) bytes")
+                        print("✅ [Resolution Adjustment] HEIC encoding successful - Size: \(resizedData.count) bytes")
                     } else {
                         await MainActor.run {
                             item.status = .failed
-                            item.errorMessage = "HEIC 编码失败"
+                            item.errorMessage = "HEIC encoding failed"
                         }
                         return
                     }
                 } else {
                     await MainActor.run {
                         item.status = .failed
-                        item.errorMessage = "无法创建 HEIC 编码器"
+                        item.errorMessage = "Unable to create HEIC encoder"
                     }
                     return
                 }
@@ -708,12 +706,12 @@ struct ResolutionView: View {
                 guard let jpegData = image.jpegData(compressionQuality: 0.9) else {
                     await MainActor.run {
                         item.status = .failed
-                        item.errorMessage = "无法编码图片"
+                        item.errorMessage = "Unable to encode image"
                     }
                     return
                 }
                 resizedData = jpegData
-                print("✅ [分辨率调整] JPEG 编码成功（HEIC 不支持） - 大小: \(resizedData.count) bytes")
+                print("✅ [Resolution Adjustment] JPEG encoding successful (HEIC not supported) - Size: \(resizedData.count) bytes")
             }
             
         case .jpeg:
@@ -721,31 +719,29 @@ struct ResolutionView: View {
             guard let jpegData = image.jpegData(compressionQuality: 0.9) else {
                 await MainActor.run {
                     item.status = .failed
-                    item.errorMessage = "无法编码图片"
+                    item.errorMessage = "Unable to encode image"
                 }
                 return
             }
             resizedData = jpegData
-            print("✅ [分辨率调整] JPEG 编码成功 - 大小: \(resizedData.count) bytes")
-            
-        case .webp:
+                print("✅ [Resolution Adjustment] JPEG encoding successful - Size: \(resizedData.count) bytes")        case .webp:
             // WebP 格式 - 使用 SDWebImageWebPCoder
             let webpCoder = SDImageWebPCoder.shared
             if let webpData = webpCoder.encodedData(with: image, format: .webP, options: [.encodeCompressionQuality: 0.9]) {
                 resizedData = webpData
-                print("✅ [分辨率调整] WebP 编码成功 - 大小: \(resizedData.count) bytes")
+                print("✅ [Resolution Adjustment] WebP encoding successful - Size: \(resizedData.count) bytes")
             } else {
                 // WebP 编码失败，回退到 JPEG
-                print("⚠️ [分辨率调整] WebP 编码失败，回退到 JPEG")
+                print("⚠️ [Resolution Adjustment] WebP encoding failed, falling back to JPEG")
                 guard let jpegData = image.jpegData(compressionQuality: 0.9) else {
                     await MainActor.run {
                         item.status = .failed
-                        item.errorMessage = "无法编码图片"
+                        item.errorMessage = "Unable to encode image"
                     }
                     return
                 }
                 resizedData = jpegData
-                print("✅ [分辨率调整] JPEG 编码成功（WebP 回退） - 大小: \(resizedData.count) bytes")
+                print("✅ [Resolution Adjustment] JPEG encoding successful (WebP fallback) - Size: \(resizedData.count) bytes")
             }
         }
         
@@ -851,7 +847,7 @@ struct ResolutionView: View {
         guard let sourceURL = item.sourceVideoURL else {
             await MainActor.run {
                 item.status = .failed
-                item.errorMessage = "无法加载原始视频"
+                item.errorMessage = "Unable to load original video"
             }
             return
         }
@@ -865,7 +861,7 @@ struct ResolutionView: View {
         guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
             await MainActor.run {
                 item.status = .failed
-                item.errorMessage = "无法创建导出会话"
+                item.errorMessage = "Unable to create export session"
             }
             return
         }
@@ -914,7 +910,7 @@ struct ResolutionView: View {
                 item.progress = 1.0
             default:
                 item.status = .failed
-                item.errorMessage = exportSession.error?.localizedDescription ?? "导出失败"
+                item.errorMessage = exportSession.error?.localizedDescription ?? "Export failed"
             }
         }
     }
@@ -1040,7 +1036,7 @@ struct ResolutionSettingsSheet: View {
         NavigationView {
             Form {
                 Section {
-                    Picker("目标分辨率", selection: $targetResolution) {
+                    Picker("Target Resolution", selection: $targetResolution) {
                         ForEach(ImageResolution.allCases) { resolution in
                             Text(resolution.rawValue).tag(resolution)
                         }
@@ -1049,7 +1045,7 @@ struct ResolutionSettingsSheet: View {
                     
                     if targetResolution == .custom {
                         HStack {
-                            Text("宽度")
+                            Text("Width")
                                 .frame(width: 50, alignment: .leading)
                             TextField("1920", value: $customWidth, formatter: NumberFormatter.noGrouping)
                                 .keyboardType(.numberPad)
@@ -1059,7 +1055,7 @@ struct ResolutionSettingsSheet: View {
                         }
                         
                         HStack {
-                            Text("高度")
+                            Text("Height")
                                 .frame(width: 50, alignment: .leading)
                             TextField("1080", value: $customHeight, formatter: NumberFormatter.noGrouping)
                                 .keyboardType(.numberPad)
@@ -1069,11 +1065,11 @@ struct ResolutionSettingsSheet: View {
                         }
                     }
                 } header: {
-                    Text("分辨率设置")
+                    Text("Resolution Settings")
                 }
                 
                 Section {
-                    Picker("缩放模式", selection: $resizeMode) {
+                    Picker("Scaling Mode", selection: $resizeMode) {
                         ForEach(ResizeMode.allCases) { mode in
                             Text(mode.rawValue).tag(mode)
                         }
@@ -1084,14 +1080,14 @@ struct ResolutionSettingsSheet: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } header: {
-                    Text("缩放模式")
+                    Text("Scaling Mode")
                 }
             }
-            .navigationTitle("分辨率设置")
+            .navigationTitle("Resolution Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
+                    Button("Done") {
                         dismiss()
                     }
                 }

@@ -2,7 +2,7 @@
 //  MediaItem.swift
 //  hummingbird
 //
-//  媒体文件项模型
+//  Media file item model
 //
 
 import Foundation
@@ -11,12 +11,12 @@ import PhotosUI
 import Combine
 
 enum CompressionStatus {
-    case loading      // 加载中
-    case pending      // 等待处理
-    case compressing  // 压缩中
-    case processing   // 处理中（用于分辨率调整）
-    case completed    // 完成
-    case failed       // 失败
+    case loading      // Loading
+    case pending      // Pending
+    case compressing  // Compressing
+    case processing   // Processing (for resolution adjustment)
+    case completed    // Completed
+    case failed       // Failed
 }
 
 @MainActor
@@ -35,59 +35,59 @@ class MediaItem: Identifiable, ObservableObject {
     @Published var thumbnailImage: UIImage?
     @Published var fileExtension: String = ""
     
-    // 分辨率信息
+    // Resolution information
     @Published var originalResolution: CGSize?
     @Published var compressedResolution: CGSize?
     
-    // 视频时长（秒，仅视频有效）
+    // Video duration (seconds, video only)
     @Published var duration: Double?
     
-    // 原始图片格式（从 PhotosPickerItem 检测）
+    // Original image format (detected from PhotosPickerItem)
     var originalImageFormat: ImageFormat?
     
-    // 输出图片格式（压缩后的格式）
+    // Output image format (compressed format)
     var outputImageFormat: ImageFormat?
     
-    // 输出视频格式（转换后的格式）
+    // Output video format (converted format)
     var outputVideoFormat: String?
     
-    // 临时文件URL（用于视频）
+    // Temporary file URL (for video)
     var sourceVideoURL: URL?
     var compressedVideoURL: URL?
     
     init(pickerItem: PhotosPickerItem?, isVideo: Bool) {
         self.pickerItem = pickerItem
         self.isVideo = isVideo
-        self.status = pickerItem != nil ? .loading : .pending  // 如果是从文件导入，直接设为pending状态
+        self.status = pickerItem != nil ? .loading : .pending  // If imported from file, set to pending status directly
     }
     
-    // 计算压缩率（减少的百分比）
+    // Calculate compression ratio (percentage reduced)
     var compressionRatio: Double {
         guard originalSize > 0, compressedSize > 0 else { return 0 }
         return Double(originalSize - compressedSize) / Double(originalSize)
     }
     
-    // 计算减少的大小
+    // Calculate size reduction
     var savedSize: Int {
         return originalSize - compressedSize
     }
     
-    // 格式化字节大小
+    // Format byte size
     func formatBytes(_ bytes: Int) -> String {
         let kb = Double(bytes) / 1024.0
         if kb < 1024 { return String(format: "%.3f KB", kb) }
         return String(format: "%.3f MB", kb / 1024.0)
     }
     
-    // 格式化分辨率
+    // Format resolution
     func formatResolution(_ size: CGSize?) -> String {
-        guard let size = size else { return "未知" }
+        guard let size = size else { return "Unknown" }
         return "\(Int(size.width))×\(Int(size.height))"
     }
     
-    // 格式化时长
+    // Format duration
     func formatDuration(_ duration: Double?) -> String {
-        guard let duration = duration, duration > 0 else { return "未知" }
+        guard let duration = duration, duration > 0 else { return "Unknown" }
         
         let hours = Int(duration) / 3600
         let minutes = Int(duration) % 3600 / 60
@@ -100,7 +100,7 @@ class MediaItem: Identifiable, ObservableObject {
         }
     }
     
-    // 延迟加载视频数据（仅在需要时加载）
+    // Lazy load video data (only load when needed)
     func loadVideoDataIfNeeded() async -> Data? {
         if let existingData = originalData {
             return existingData
@@ -110,12 +110,12 @@ class MediaItem: Identifiable, ObservableObject {
             return nil
         }
         
-        // 如果是临时文件，直接读取
+        // If it's a temporary file, read directly
         if sourceURL.path.contains(NSTemporaryDirectory()) {
             return try? Data(contentsOf: sourceURL)
         }
         
-        // 如果是 PhotosPickerItem，重新加载
+        // If it's a PhotosPickerItem, reload
         if let pickerItem = pickerItem {
             do {
                 let data = try await pickerItem.loadTransferable(type: Data.self)
@@ -127,7 +127,7 @@ class MediaItem: Identifiable, ObservableObject {
                 }
                 return data
             } catch {
-                print("延迟加载视频数据失败: \(error)")
+                print("Lazy load video data failed: \(error)")
                 return nil
             }
         }

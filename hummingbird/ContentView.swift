@@ -12,15 +12,15 @@ struct ContentView: View {
         TabView {
             CompressionView()
                 .tabItem {
-                    Label("压缩", systemImage: "bolt.fill")
+                    Label("Compress", systemImage: "bolt.fill")
                 }
             ResolutionView()
                 .tabItem {
-                    Label("分辨率", systemImage: "arrow.up.left.and.arrow.down.right")
+                    Label("Resolution", systemImage: "arrow.up.left.and.arrow.down.right")
                 }
             FormatView()
                 .tabItem {
-                    Label("格式", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Format", systemImage: "arrow.triangle.2.circlepath")
                 }
         }
         .environment(\.horizontalSizeClass, .compact)

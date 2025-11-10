@@ -2,7 +2,7 @@
 //  ToastView.swift
 //  hummingbird
 //
-//  Toast 提示组件
+//  Toast notification component
 //
 
 import SwiftUI

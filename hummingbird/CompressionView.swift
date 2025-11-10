@@ -2,7 +2,7 @@
 //  CompressionView.swift
 //  hummingbird
 //
-//  压缩视图
+//  Compression View
 //
 
 import SwiftUI
@@ -33,17 +33,17 @@ struct CompressionView: View {
                         // 左侧：下拉菜单选择来源
                         Menu {
                             Button(action: { showingPhotoPicker = true }) {
-                                Label("从相册选择", systemImage: "photo.on.rectangle.angled")
+                                Label("Select from Photos", systemImage: "photo.on.rectangle.angled")
                             }
                             
                             Button(action: { showingFilePicker = true }) {
-                                Label("从文件选择", systemImage: "folder.fill")
+                                Label("Select from Files", systemImage: "folder.fill")
                             }
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "plus.circle.fill")
                                     .font(.system(size: 16, weight: .semibold))
-                                Text("添加文件")
+                                Text("Add Files")
                                     .font(.system(size: 15, weight: .semibold))
                                 Image(systemName: "chevron.down")
                                     .font(.system(size: 12, weight: .semibold))
@@ -65,7 +65,7 @@ struct CompressionView: View {
                                     Image(systemName: "bolt.fill")
                                         .font(.system(size: 16, weight: .bold))
                                 }
-                                Text(isCompressing ? "处理中" : hasLoadingItems ? "加载中" : "开始压缩")
+                                Text(isCompressing ? "Processing" : hasLoadingItems ? "Loading" : "Start")
                                     .font(.system(size: 15, weight: .bold))
                             }
                             .frame(maxWidth: .infinity)
@@ -92,7 +92,7 @@ struct CompressionView: View {
                         Image(systemName: "photo.stack")
                             .font(.system(size: 60))
                             .foregroundStyle(.secondary)
-                        Text("选择图片或视频开始压缩")
+                        Text("Select photos or videos to start compression")
                             .font(.headline)
                             .foregroundStyle(.secondary)
                     }
@@ -113,7 +113,7 @@ struct CompressionView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("媒体压缩")
+            .navigationTitle("Media Compression")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -148,7 +148,7 @@ struct CompressionView: View {
                     let urls = try result.get()
                     await loadFileURLs(urls)
                 } catch {
-                    print("文件选择错误: \(error.localizedDescription)")
+                    print("File selection error: \(error.localizedDescription)")
                 }
             }
         }
@@ -425,14 +425,14 @@ struct CompressionView: View {
             } catch {
                 await MainActor.run {
                     mediaItem.status = .failed
-                    mediaItem.errorMessage = "无法创建临时视频文件: \(error.localizedDescription)"
+                    mediaItem.errorMessage = "Unable to create temporary video file: \(error.localizedDescription)"
                 }
             }
         } else {
             // 如果两种方式都失败，标记为失败
             await MainActor.run {
                 mediaItem.status = .failed
-                mediaItem.errorMessage = "无法加载视频文件"
+                mediaItem.errorMessage = "Unable to load video file"
             }
         }
     }
@@ -461,7 +461,7 @@ struct CompressionView: View {
                 mediaItem.duration = durationSeconds
             }
         } catch {
-            print("加载视频轨道信息失败: \(error)")
+            print("Failed to load video track info: \(error)")
         }
         
         // 异步生成缩略图
@@ -507,7 +507,7 @@ struct CompressionView: View {
                 item.thumbnailImage = thumbnail
             }
         } catch {
-            print("生成视频缩略图失败: \(error)")
+            print("Failed to generate video thumbnail: \(error)")
             // 设置默认视频图标
             await MainActor.run {
                 item.thumbnailImage = UIImage(systemName: "video.fill")
@@ -570,7 +570,7 @@ struct CompressionView: View {
         guard let originalData = item.originalData else {
             await MainActor.run {
                 item.status = .failed
-                item.errorMessage = "无法加载原始图片"
+                item.errorMessage = "Unable to load original image"
             }
             return
         }
@@ -631,12 +631,12 @@ struct CompressionView: View {
             await MainActor.run {
                 // 智能判断：如果压缩后反而变大，保留原图
                 if compressed.count >= originalData.count {
-                    print("⚠️ [压缩判断] 压缩后大小 (\(compressed.count) bytes) >= 原图 (\(originalData.count) bytes)，保留原图")
+                    print("⚠️ [Compression Check] Compressed size (\(compressed.count) bytes) >= Original size (\(originalData.count) bytes), keeping original")
                     item.compressedData = originalData
                     item.compressedSize = originalData.count
                     item.outputImageFormat = item.originalImageFormat  // 保持原格式
                 } else {
-                    print("✅ [压缩判断] 压缩成功，从 \(originalData.count) bytes 减少到 \(compressed.count) bytes")
+                    print("✅ [Compression Check] Compression successful, reduced from \(originalData.count) bytes to \(compressed.count) bytes")
                     item.compressedData = compressed
                     item.compressedSize = compressed.count
                     item.outputImageFormat = outputFormat  // 使用压缩后的格式
@@ -661,7 +661,7 @@ struct CompressionView: View {
         guard let sourceURL = item.sourceVideoURL else {
             await MainActor.run {
                 item.status = .failed
-                item.errorMessage = "无法加载原始视频"
+                item.errorMessage = "Unable to load original video"
             }
             return
         }
@@ -707,7 +707,7 @@ struct CompressionView: View {
                         }
                         // 智能判断：如果压缩后反而变大，可能选择保留「原始内容」但仍应满足用户期望的容器（例如用户希望 mp4）
                         if compressedSize >= item.originalSize {
-                            print("⚠️ [视频压缩判断] 压缩后大小 (\(compressedSize) bytes) >= 原视频 (\(item.originalSize) bytes)，尝试保留原始流但转换容器以匹配期望格式")
+                            print("⚠️ [Video Compression Check] Compressed size (\(compressedSize) bytes) >= Original size (\(item.originalSize) bytes), attempting to keep original stream but convert container to match desired format")
 
                             // 如果原文件扩展名与期望容器不同，尝试无损 remux（-c copy）到期望容器
                             let desiredExt: String = {
@@ -733,13 +733,13 @@ struct CompressionView: View {
                                             item.compressedVideoURL = finalURL
                                             item.compressedSize = finalSize
                                             item.compressedResolution = item.originalResolution
-                                            print("✅ [remux] 已将原始视频 remux 到 \(desiredExt), 大小: \(finalSize) bytes")
+                                            print("✅ [remux] Original video remuxed to \(desiredExt), size: \(finalSize) bytes")
                                         case .failure:
                                             // remux 失败，退回到原始文件
                                             item.compressedVideoURL = sourceURL
                                             item.compressedSize = item.originalSize
                                             item.compressedResolution = item.originalResolution
-                                            print("⚠️ [remux] 失败，已回退到原始视频")
+                                            print("⚠️ [remux] Failed, falling back to original video")
                                         }
                                     }
                                 }
@@ -753,7 +753,7 @@ struct CompressionView: View {
                             // 清理压缩后的临时文件（因为没使用它）
                             try? FileManager.default.removeItem(at: url)
                         } else {
-                            print("✅ [视频压缩判断] 压缩成功，从 \(item.originalSize) bytes 减少到 \(compressedSize) bytes")
+                            print("✅ [Video Compression Check] Compression successful, reduced from \(item.originalSize) bytes to \(compressedSize) bytes")
 
                             // 使用压缩后的视频
                             item.compressedVideoURL = url

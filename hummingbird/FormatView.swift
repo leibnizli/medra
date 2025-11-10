@@ -2,7 +2,7 @@
 //  FormatView.swift
 //  hummingbird
 //
-//  格式转换视图
+//  Format Conversion View
 //
 
 import SwiftUI
@@ -19,7 +19,7 @@ struct FormatView: View {
     @State private var showingFilePicker = false
     @StateObject private var settings = FormatSettings()
     
-    // 检查是否有媒体项正在加载
+    // Check if any media items are loading
     private var hasLoadingItems: Bool {
         mediaItems.contains { $0.status == .loading }
     }
@@ -33,17 +33,17 @@ struct FormatView: View {
                         // 左侧：下拉菜单选择来源
                         Menu {
                             Button(action: { showingPhotoPicker = true }) {
-                                Label("从相册选择", systemImage: "photo.on.rectangle.angled")
+                                Label("Select from Photos", systemImage: "photo.on.rectangle.angled")
                             }
                             
                             Button(action: { showingFilePicker = true }) {
-                                Label("从文件选择", systemImage: "folder.fill")
+                                Label("Select from Files", systemImage: "folder.fill")
                             }
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "plus.circle.fill")
                                     .font(.system(size: 16, weight: .semibold))
-                                Text("添加文件")
+                                Text("Add Files")
                                     .font(.system(size: 15, weight: .semibold))
                                 Image(systemName: "chevron.down")
                                     .font(.system(size: 12, weight: .semibold))
@@ -65,7 +65,7 @@ struct FormatView: View {
                                     Image(systemName: "arrow.triangle.2.circlepath")
                                         .font(.system(size: 16, weight: .bold))
                                 }
-                                Text(isConverting ? "处理中" : hasLoadingItems ? "加载中" : "开始转换")
+                                Text(isConverting ? "Processing" : hasLoadingItems ? "Loading" : "Start")
                                     .font(.system(size: 15, weight: .bold))
                             }
                             .frame(maxWidth: .infinity)
@@ -89,7 +89,7 @@ struct FormatView: View {
                 VStack(spacing: 0) {
                     // 图片格式设置
                     HStack {
-                        Text("目标图片格式")
+                        Text("Target Image Format")
                             .font(.system(size: 15))
                             .foregroundStyle(.primary)
                         Spacer()
@@ -108,7 +108,7 @@ struct FormatView: View {
                     
                     // 视频格式设置
                     HStack {
-                        Text("目标视频格式")
+                        Text("Target Video Format")
                             .font(.system(size: 15))
                             .foregroundStyle(.primary)
                         Spacer()
@@ -129,10 +129,10 @@ struct FormatView: View {
                     // HEVC 开关
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("HEVC 编码")
+                            Text("HEVC Encoding")
                                 .font(.system(size: 15))
                                 .foregroundStyle(.primary)
-                            Text("更小的文件大小，兼容性较低")
+                            Text("Smaller file size, lower compatibility")
                                 .font(.system(size: 12))
                                 .foregroundStyle(.secondary)
                         }
@@ -157,7 +157,7 @@ struct FormatView: View {
                         Image(systemName: "photo.stack")
                             .font(.system(size: 60))
                             .foregroundStyle(.secondary)
-                        Text("选择图片或视频进行格式转换")
+                        Text("Select photos or videos for format conversion")
                             .font(.headline)
                             .foregroundStyle(.secondary)
                     }
@@ -178,7 +178,7 @@ struct FormatView: View {
                     .listStyle(.plain)
                 }
             }
-            .navigationTitle("格式转换")
+            .navigationTitle("Format Conversion")
             .navigationBarTitleDisplayMode(.inline)
         }
         .onChange(of: selectedItems) { _, newItems in
@@ -198,7 +198,7 @@ struct FormatView: View {
                     await loadFilesFromURLs(urls)
                 }
             case .failure(let error):
-                print("文件选择失败: \(error.localizedDescription)")
+                print("File selection failed: \(error.localizedDescription)")
             }
         }
     }
@@ -264,10 +264,10 @@ struct FormatView: View {
                     await loadVideoMetadata(for: mediaItem, url: tempURL)
                 }
             } catch {
-                print("读取文件失败: \(error.localizedDescription)")
+                print("Failed to read file: \(error.localizedDescription)")
                 await MainActor.run {
                     mediaItem.status = .failed
-                    mediaItem.errorMessage = "读取文件失败"
+                    mediaItem.errorMessage = "Failed to read file"
                 }
             }
         }
@@ -443,7 +443,7 @@ struct FormatView: View {
                 mediaItem.duration = durationSeconds
             }
         } catch {
-            print("加载视频轨道信息失败: \(error)")
+            print("Failed to load video track info: \(error)")
         }
         
         // 异步生成缩略图
@@ -489,7 +489,7 @@ struct FormatView: View {
                 item.thumbnailImage = thumbnail
             }
         } catch {
-            print("生成视频缩略图失败: \(error)")
+            print("Failed to generate video thumbnail: \(error)")
             // 设置默认视频图标
             await MainActor.run {
                 item.thumbnailImage = UIImage(systemName: "video.fill")
@@ -849,7 +849,7 @@ struct FormatView: View {
                 item.status = .completed
                 item.progress = 1.0
                 
-                print("[格式转换] 视频 -> \(fileExtension.uppercased()) - 大小: \(item.compressedSize) bytes")
+                print("[Format Conversion] Video -> \(fileExtension.uppercased()) - Size: \(item.compressedSize) bytes")
             default:
                 print(" [convertVideo] 视频导出失败，状态: \(exportSession.status.rawValue)")
                 if let error = exportSession.error {
@@ -873,7 +873,7 @@ struct FormatSettingsView: View {
             Form {
                 Section {
                     HStack {
-                        Text("目标图片格式")
+                        Text("Target Image Format")
                         Spacer()
                         Picker("", selection: $settings.targetImageFormat) {
                             Text("JPEG").tag(ImageFormat.jpeg)
@@ -882,14 +882,14 @@ struct FormatSettingsView: View {
                         .pickerStyle(.menu)
                     }
                 } header: {
-                    Text("图片格式设置")
+                    Text("Image Format Settings")
                 }
                 
                 Section {
                     HStack {
-                        Text("目标视频格式")
+                        Text("Target Video Format")
                         Spacer()
-                        Picker("目标视频格式", selection: $settings.targetVideoFormat) {
+                        Picker("Target Video Format", selection: $settings.targetVideoFormat) {
                             Text("MP4").tag("mp4")
                             Text("MOV").tag("mov")
                             Text("M4V").tag("m4v")
@@ -899,23 +899,23 @@ struct FormatSettingsView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 8) {
-                        Toggle("使用 HEVC (H.265) 编码", isOn: $settings.useHEVC)
+                        Toggle("Use HEVC (H.265) Encoding", isOn: $settings.useHEVC)
                         
-                        Text("HEVC 编码可以在保持相同质量的情况下减小文件大小，但兼容性可能不如 H.264")
+                        Text("HEVC encoding can reduce file size while maintaining the same quality, but may have lower compatibility than H.264")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     .opacity(AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality) ? 1 : 0.5)
                     .disabled(!AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality))
                 } header: {
-                    Text("视频格式设置")
+                    Text("Video Format Settings")
                 }
             }
-            .navigationTitle("格式转换设置")
+            .navigationTitle("Format Conversion Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
+                    Button("Done") {
                         dismiss()
                     }
                 }

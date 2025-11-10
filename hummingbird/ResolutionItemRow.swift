@@ -2,7 +2,7 @@
 //  ResolutionItemRow.swift
 //  hummingbird
 //
-//  修改分辨率功能的媒体项行视图
+//  Media item row view for resolution modification feature
 //
 
 import SwiftUI
@@ -15,7 +15,7 @@ struct ResolutionItemRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                // 预览图
+                // Preview image
                 ZStack {
                     Color.gray.opacity(0.2)
                     
@@ -32,16 +32,16 @@ struct ResolutionItemRow: View {
                 .frame(width: 80, height: 80)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 
-                // 信息区域
+                // Information area
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Image(systemName: item.isVideo ? "video.circle.fill" : "photo.circle.fill")
                             .foregroundStyle(item.isVideo ? .blue : .green)
-                        Text(item.isVideo ? "视频" : "图片")
+                        Text(item.isVideo ? "Video" : "Image")
                             .font(.subheadline)
                             .fontWeight(.medium)
                         
-                        // 文件扩展名
+                        // File extension
                         if !item.fileExtension.isEmpty {
                             Text("·")
                                 .font(.subheadline)
@@ -58,24 +58,24 @@ struct ResolutionItemRow: View {
                         
                         Spacer()
                         
-                        // 状态标识
+                        // Status badge
                         statusBadge
                     }
                     
-                    // 分辨率信息
+                    // Resolution information
                     if item.status == .completed {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("分辨率: \(item.formatResolution(item.originalResolution)) → \(item.formatResolution(item.compressedResolution))")
+                            Text("Resolution: \(item.formatResolution(item.originalResolution)) → \(item.formatResolution(item.compressedResolution))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             
-                            Text("大小: \(item.formatBytes(item.originalSize)) → \(item.formatBytes(item.compressedSize))")
+                            Text("Size: \(item.formatBytes(item.originalSize)) → \(item.formatBytes(item.compressedSize))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             
-                            // 显示视频时长（仅视频）
+                            // Show video duration (video only)
                             if item.isVideo {
-                                Text("时长: \(item.formatDuration(item.duration))")
+                                Text("Duration: \(item.formatDuration(item.duration))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -83,29 +83,29 @@ struct ResolutionItemRow: View {
                     } else {
                         VStack(alignment: .leading, spacing: 2) {
                             if let resolution = item.originalResolution {
-                                Text("分辨率: \(item.formatResolution(resolution))")
+                                Text("Resolution: \(item.formatResolution(resolution))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            Text("大小: \(item.formatBytes(item.originalSize))")
+                            Text("Size: \(item.formatBytes(item.originalSize))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            // 显示视频时长（仅视频）
+                            // Show video duration (video only)
                             if item.isVideo {
-                                Text("时长: \(item.formatDuration(item.duration))")
+                                Text("Duration: \(item.formatDuration(item.duration))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
                     }
                     
-                    // 进度条
+                    // Progress bar
                     if item.status == .processing {
                         ProgressView(value: Double(item.progress))
                             .tint(.blue)
                     }
                     
-                    // 错误信息
+                    // Error message
                     if let error = item.errorMessage {
                         Text(error)
                             .font(.caption)
@@ -115,13 +115,13 @@ struct ResolutionItemRow: View {
                 }
             }
             
-            // 保存按钮
+            // Save button
             if item.status == .completed {
                 Button(action: { saveToPhotos(item) }) {
                     HStack(spacing: 6) {
                         Image(systemName: "photo.badge.arrow.down")
                             .font(.subheadline)
-                        Text("保存到相册")
+                        Text("Save to Photos")
                             .font(.subheadline)
                     }
                     .frame(maxWidth: .infinity)
@@ -130,7 +130,7 @@ struct ResolutionItemRow: View {
             }
         }
         .padding(.vertical, 8)
-        .toast(isShowing: $showingToast, message: "保存成功")
+        .toast(isShowing: $showingToast, message: "Saved successfully")
     }
     
     @ViewBuilder
@@ -140,7 +140,7 @@ struct ResolutionItemRow: View {
             HStack(spacing: 3) {
                 ProgressView()
                     .scaleEffect(0.7)
-                Text("加载中")
+                Text("Loading")
             }
             .font(.caption)
             .foregroundStyle(.blue)
@@ -148,7 +148,7 @@ struct ResolutionItemRow: View {
         case .pending:
             HStack(spacing: 3) {
                 Image(systemName: "clock")
-                Text("等待中")
+                Text("Pending")
             }
             .font(.caption)
             .foregroundStyle(.orange)
@@ -156,7 +156,7 @@ struct ResolutionItemRow: View {
         case .compressing:
             HStack(spacing: 3) {
                 Image(systemName: "arrow.triangle.2.circlepath")
-                Text("压缩中")
+                Text("Compressing")
             }
             .font(.caption)
             .foregroundStyle(.blue)
@@ -164,7 +164,7 @@ struct ResolutionItemRow: View {
         case .processing:
             HStack(spacing: 3) {
                 Image(systemName: "arrow.triangle.2.circlepath")
-                Text("处理中")
+                Text("Processing")
             }
             .font(.caption)
             .foregroundStyle(.blue)
@@ -172,7 +172,7 @@ struct ResolutionItemRow: View {
         case .completed:
             HStack(spacing: 3) {
                 Image(systemName: "checkmark.circle.fill")
-                Text("完成")
+                Text("Completed")
             }
             .font(.caption)
             .foregroundStyle(.green)
@@ -180,7 +180,7 @@ struct ResolutionItemRow: View {
         case .failed:
             HStack(spacing: 3) {
                 Image(systemName: "xmark.circle.fill")
-                Text("失败")
+                Text("Failed")
             }
             .font(.caption)
             .foregroundStyle(.red)
@@ -192,7 +192,7 @@ struct ResolutionItemRow: View {
         Task {
             let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
             guard status == .authorized || status == .limited else {
-                print("相册权限被拒绝")
+                print("Photo library permission denied")
                 return
             }
             
@@ -201,7 +201,7 @@ struct ResolutionItemRow: View {
                     if item.isVideo, let url = item.compressedVideoURL {
                         PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
                     } else if let data = item.compressedData {
-                        // 根据输出格式确定文件扩展名（支持更多格式）
+                        // Determine file extension based on output format (support more formats)
                         let fileExtension: String
                         switch item.outputImageFormat {
                         case .heic:
@@ -216,15 +216,15 @@ struct ResolutionItemRow: View {
                             fileExtension = "jpg"
                         }
                         
-                        // 将调整后的数据写入临时文件
+                        // Write resized data to temporary file
                         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
                             .appendingPathComponent("resized_\(UUID().uuidString).\(fileExtension)")
                         try? data.write(to: tempURL)
                         
-                        // 使用文件 URL 保存，保持原始数据
+                        // Save using file URL, keep original data
                         let request = PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: tempURL)
                         
-                        // 清理临时文件（延迟执行，确保保存完成）
+                        // Clean up temporary file (delayed to ensure save completes)
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                             try? FileManager.default.removeItem(at: tempURL)
                         }
@@ -236,7 +236,7 @@ struct ResolutionItemRow: View {
                     }
                 }
             } catch {
-                print("保存失败: \(error.localizedDescription)")
+                print("Save failed: \(error.localizedDescription)")
             }
         }
     }

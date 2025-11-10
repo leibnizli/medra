@@ -2,7 +2,7 @@
 //  PNGCompressor.swift
 //  hummingbird
 //
-//  PNG 压缩器 - 使用系统内置方法实现颜色量化压缩
+//  PNG Compressor - Color quantization compression using system built-in methods
 //
 
 import UIKit
@@ -11,32 +11,32 @@ import ImageIO
 
 class PNGCompressor {
     
-    /// 压缩 PNG 图片
+    /// Compress PNG image
     /// - Parameters:
-    ///   - image: 原始图片
-    ///   - progressHandler: 进度回调 (0.0 - 1.0)
-    /// - Returns: 压缩后的 PNG 数据
+    ///   - image: Original image
+    ///   - progressHandler: Progress callback (0.0 - 1.0)
+    /// - Returns: Compressed PNG data
     static func compress(image: UIImage, progressHandler: ((Float) -> Void)? = nil) async -> Data? {
         progressHandler?(0.05)
         
         guard let cgImage = image.cgImage else {
-            print("❌ [PNG压缩] 无法获取 CGImage")
+            print("❌ [PNG Compression] Unable to get CGImage")
             return image.pngData()
         }
         
         progressHandler?(0.1)
         
-        // 检查是否有透明通道
+        // Check if alpha channel exists
         let hasAlpha = cgImage.alphaInfo != .none &&
                        cgImage.alphaInfo != .noneSkipFirst &&
                        cgImage.alphaInfo != .noneSkipLast
         
         let originalSize = image.pngData()?.count ?? 0
-        print("🔄 [PNG压缩] 开始压缩 - 尺寸: \(cgImage.width)x\(cgImage.height), 透明通道: \(hasAlpha), 原始大小: \(originalSize) bytes")
+        print("🔄 [PNG Compression] Starting compression - Size: \(cgImage.width)x\(cgImage.height), Alpha: \(hasAlpha), Original size: \(originalSize) bytes")
         
         progressHandler?(0.2)
         
-        // 使用 CIImage 进行颜色量化处理
+        // Use CIImage for color quantization processing
         let ciImage = CIImage(cgImage: cgImage)
         let context = CIContext(options: [
             .useSoftwareRenderer: false,
@@ -45,38 +45,38 @@ class PNGCompressor {
         
         progressHandler?(0.3)
         
-        // 应用颜色量化滤镜
+        // Apply color quantization filter
         guard let quantizedImage = applyColorQuantization(ciImage: ciImage, hasAlpha: hasAlpha) else {
-            print("⚠️ [PNG压缩] 颜色量化失败，使用原图")
+            print("⚠️ [PNG Compression] Color quantization failed, using original image")
             progressHandler?(1.0)
             return image.pngData()
         }
         
         progressHandler?(0.5)
         
-        // 渲染为 CGImage
+        // Render to CGImage
         guard let outputCGImage = context.createCGImage(quantizedImage, from: quantizedImage.extent) else {
-            print("⚠️ [PNG压缩] 渲染失败，使用原图")
+            print("⚠️ [PNG Compression] Rendering failed, using original image")
             progressHandler?(1.0)
             return image.pngData()
         }
         
         progressHandler?(0.7)
         
-        // 使用 ImageIO 进行优化的 PNG 编码
+        // Use ImageIO for optimized PNG encoding
         let mutableData = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(mutableData, "public.png" as CFString, 1, nil) else {
-            print("⚠️ [PNG压缩] 无法创建 ImageDestination")
+            print("⚠️ [PNG Compression] Unable to create ImageDestination")
             progressHandler?(1.0)
             return image.pngData()
         }
         
         progressHandler?(0.8)
         
-        // 设置 PNG 压缩选项
+        // Set PNG compression options
         let options: [CFString: Any] = [
-            kCGImageDestinationLossyCompressionQuality: 0.8,  // 有损压缩质量
-            kCGImagePropertyPNGCompressionFilter: 5  // PNG 压缩过滤器（5 = Paeth）
+            kCGImageDestinationLossyCompressionQuality: 0.8,  // Lossy compression quality
+            kCGImagePropertyPNGCompressionFilter: 5  // PNG compression filter (5 = Paeth)
         ]
         
         CGImageDestinationAddImage(destination, outputCGImage, options as CFDictionary)
@@ -84,7 +84,7 @@ class PNGCompressor {
         progressHandler?(0.9)
         
         guard CGImageDestinationFinalize(destination) else {
-            print("⚠️ [PNG压缩] 编码失败")
+            print("⚠️ [PNG Compression] Encoding failed")
             progressHandler?(1.0)
             return image.pngData()
         }
@@ -94,27 +94,27 @@ class PNGCompressor {
         
         progressHandler?(1.0)
         
-        print("✅ [PNG压缩] 压缩完成 - 压缩后: \(compressedData.count) bytes, 压缩比: \(String(format: "%.1f%%", compressionRatio * 100))")
+        print("✅ [PNG Compression] Compression complete - Compressed: \(compressedData.count) bytes, Ratio: \(String(format: "%.1f%%", compressionRatio * 100))")
         return compressedData
     }
     
-    /// 应用颜色量化
+    /// Apply color quantization
     private static func applyColorQuantization(ciImage: CIImage, hasAlpha: Bool) -> CIImage? {
-        // 使用 CIColorPosterize 滤镜进行颜色量化
-        // 这个滤镜可以减少图片中的颜色数量，类似 pngquant 的效果
+        // Use CIColorPosterize filter for color quantization
+        // This filter reduces the number of colors in the image, similar to pngquant
         guard let posterizeFilter = CIFilter(name: "CIColorPosterize") else {
-            print("⚠️ [PNG压缩] 无法创建 CIColorPosterize 滤镜")
+            print("⚠️ [PNG Compression] Unable to create CIColorPosterize filter")
             return ciImage
         }
         
         posterizeFilter.setValue(ciImage, forKey: kCIInputImageKey)
-        // levels 参数控制每个颜色通道的级别数
-        // 值越小，颜色越少，压缩率越高，但质量会下降
-        // 8 是一个较好的平衡点，可以保持较好的视觉质量同时减小文件大小
+        // levels parameter controls the number of levels per color channel
+        // Lower values mean fewer colors, higher compression, but lower quality
+        // 8 is a good balance point, maintaining good visual quality while reducing file size
         posterizeFilter.setValue(8, forKey: "inputLevels")
         
         guard let outputImage = posterizeFilter.outputImage else {
-            print("⚠️ [PNG压缩] 颜色量化输出失败")
+            print("⚠️ [PNG Compression] Color quantization output failed")
             return ciImage
         }
         

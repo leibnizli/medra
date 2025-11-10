@@ -2,7 +2,7 @@
 //  FFmpegVideoCompressor.swift
 //  hummingbird
 //
-//  使用 FFmpeg 进行视频压缩
+//  Video compression using FFmpeg
 //
 
 import Foundation
@@ -11,7 +11,7 @@ import ffmpegkit
 
 class FFmpegVideoCompressor {
     
-    // 使用 FFmpeg 压缩视频
+    // Compress video using FFmpeg
     static func compressVideo(
         inputURL: URL,
         outputURL: URL,
@@ -19,21 +19,21 @@ class FFmpegVideoCompressor {
         progressHandler: @escaping (Float) -> Void,
         completion: @escaping (Result<URL, Error>) -> Void
     ) {
-        // 获取视频时长用于计算进度
+        // Get video duration for progress calculation
         let asset = AVURLAsset(url: inputURL)
         let duration = CMTimeGetSeconds(asset.duration)
         
-        // 生成 FFmpeg 命令
+        // Generate FFmpeg command
         let command = settings.generateFFmpegCommand(
             inputPath: inputURL.path,
             outputPath: outputURL.path
         )
         
-        print("🎬 [FFmpeg] 开始压缩视频")
-        print("📝 [FFmpeg] 命令: ffmpeg \(command)")
-        print("⏱️ [FFmpeg] 视频时长: \(duration) 秒")
+        print("🎬 [FFmpeg] Starting video compression")
+        print("📝 [FFmpeg] Command: ffmpeg \(command)")
+        print("⏱️ [FFmpeg] Video duration: \(duration) seconds")
         
-        // 使用标志确保 completion 只被调用一次
+        // Use flag to ensure completion is only called once
         var hasCompleted = false
         let completionLock = NSLock()
         
@@ -47,41 +47,41 @@ class FFmpegVideoCompressor {
             }
         }
         
-        // 执行 FFmpeg 命令
+        // Execute FFmpeg command
         FFmpegKit.executeAsync(command, withCompleteCallback: { session in
             guard let session = session else {
-                safeCompletion(.failure(NSError(domain: "FFmpeg", code: -1, userInfo: [NSLocalizedDescriptionKey: "会话创建失败"])))
+                safeCompletion(.failure(NSError(domain: "FFmpeg", code: -1, userInfo: [NSLocalizedDescriptionKey: "Session creation failed"])))
                 return
             }
             
             let returnCode = session.getReturnCode()
             
             if ReturnCode.isSuccess(returnCode) {
-                print("✅ [FFmpeg] 压缩成功")
+                print("✅ [FFmpeg] Compression successful")
                 safeCompletion(.success(outputURL))
             } else {
-                let errorMessage = session.getOutput() ?? "未知错误"
-                print("❌ [FFmpeg] 压缩失败")
-                print("错误码: \(returnCode?.getValue() ?? -1)")
+                let errorMessage = session.getOutput() ?? "Unknown error"
+                print("❌ [FFmpeg] Compression failed")
+                print("Error code: \(returnCode?.getValue() ?? -1)")
                 
-                // 只打印最后几行错误信息，避免日志过长
+                // Only print last few lines of error to avoid long logs
                 let lines = errorMessage.split(separator: "\n")
                 let errorLines = lines.suffix(10).joined(separator: "\n")
-                print("错误信息:\n\(errorLines)")
+                print("Error message:\n\(errorLines)")
                 
-                safeCompletion(.failure(NSError(domain: "FFmpeg", code: Int(returnCode?.getValue() ?? -1), userInfo: [NSLocalizedDescriptionKey: "视频压缩失败，请检查视频格式或尝试其他设置"])))
+                safeCompletion(.failure(NSError(domain: "FFmpeg", code: Int(returnCode?.getValue() ?? -1), userInfo: [NSLocalizedDescriptionKey: "Video compression failed, please check video format or try other settings"])))
             }
         }, withLogCallback: { log in
             guard let log = log else { return }
             let message = log.getMessage() ?? ""
             
-            // 只打印错误和警告信息（level 值越小越重要，24=warning, 16=error）
+            // Only print errors and warnings (lower level values are more important, 24=warning, 16=error)
             let level = log.getLevel()
             if level <= 24 {  // AV_LOG_WARNING = 24
                 print("[FFmpeg Log] \(message)")
             }
             
-            // 解析进度信息
+            // Parse progress information
             if message.contains("time=") {
                 if let timeRange = message.range(of: "time=([0-9:.]+)", options: .regularExpression) {
                     let timeString = String(message[timeRange]).replacingOccurrences(of: "time=", with: "")
@@ -96,8 +96,8 @@ class FFmpegVideoCompressor {
         }, withStatisticsCallback: { statistics in
             guard let statistics = statistics else { return }
             
-            // 使用统计信息计算进度
-            let time = Double(statistics.getTime()) / 1000.0  // 转换为秒
+            // Calculate progress using statistics
+            let time = Double(statistics.getTime()) / 1000.0  // Convert to seconds
             if duration > 0 {
                 let progress = Float(time / duration)
                 DispatchQueue.main.async {
@@ -107,7 +107,7 @@ class FFmpegVideoCompressor {
         })
     }
     
-    // 解析时间字符串 (HH:MM:SS.ms)
+    // Parse time string (HH:MM:SS.ms)
     private static func parseTimeString(_ timeString: String) -> Double? {
         let components = timeString.split(separator: ":")
         guard components.count == 3 else { return nil }
@@ -121,12 +121,12 @@ class FFmpegVideoCompressor {
         return hours * 3600 + minutes * 60 + seconds
     }
     
-    // 取消正在进行的压缩
+    // Cancel ongoing compression
     static func cancelAllSessions() {
         FFmpegKit.cancel()
     }
 
-    // 将输入文件的流（音视频）拷贝到指定容器（无重新编码），用于快速改变容器/扩展名
+    // Copy input file streams (audio/video) to specified container (no re-encoding), for quick container/extension change
     static func remux(
         inputURL: URL,
         outputURL: URL,
@@ -136,32 +136,32 @@ class FFmpegVideoCompressor {
         let outputPath = outputURL.path
         let outputExtension = outputURL.pathExtension.lowercased()
 
-        // 检查源视频的编码格式
+        // Check source video encoding format
         let asset = AVURLAsset(url: inputURL)
         var isHEVC = false
         if let videoTrack = asset.tracks(withMediaType: .video).first {
             let formatDescriptions = videoTrack.formatDescriptions as! [CMFormatDescription]
             if let formatDescription = formatDescriptions.first {
                 let codecType = CMFormatDescriptionGetMediaSubType(formatDescription)
-                // HEVC 的 codec type 是 'hvc1' 或 'hev1'
+                // HEVC codec type is 'hvc1' or 'hev1'
                 isHEVC = (codecType == kCMVideoCodecType_HEVC || 
                          codecType == kCMVideoCodecType_HEVCWithAlpha)
             }
         }
         
-        // 如果输出是 M4V 且源视频是 HEVC，不能使用 remux（M4V 不支持 HEVC）
+        // If output is M4V and source is HEVC, cannot use remux (M4V doesn't support HEVC)
         if outputExtension == "m4v" && isHEVC {
-            print("⚠️ [FFmpeg Remux] M4V 不支持 HEVC 编码，remux 失败")
+            print("⚠️ [FFmpeg Remux] M4V doesn't support HEVC encoding, remux failed")
             completion(.failure(NSError(domain: "FFmpeg", code: -1, 
-                userInfo: [NSLocalizedDescriptionKey: "M4V 容器不支持 HEVC 编码，需要重新编码"])))
+                userInfo: [NSLocalizedDescriptionKey: "M4V container doesn't support HEVC encoding, re-encoding required"])))
             return
         }
 
-        // -c copy 表示直接拷贝流，避免重新编码
+        // -c copy means directly copy streams, avoid re-encoding
         let command = "-i \"\(inputPath)\" -c copy -movflags +faststart \"\(outputPath)\""
 
-        print("🎬 [FFmpeg Remux] 开始 remux")
-        print("📝 [FFmpeg Remux] 命令: ffmpeg \(command)")
+        print("🎬 [FFmpeg Remux] Starting remux")
+        print("📝 [FFmpeg Remux] Command: ffmpeg \(command)")
 
         var hasCompleted = false
         let completionLock = NSLock()
@@ -176,21 +176,21 @@ class FFmpegVideoCompressor {
 
         FFmpegKit.executeAsync(command, withCompleteCallback: { session in
             guard let session = session else {
-                safeCompletion(.failure(NSError(domain: "FFmpeg", code: -1, userInfo: [NSLocalizedDescriptionKey: "会话创建失败"])))
+                safeCompletion(.failure(NSError(domain: "FFmpeg", code: -1, userInfo: [NSLocalizedDescriptionKey: "Session creation failed"])))
                 return
             }
 
             let returnCode = session.getReturnCode()
             if ReturnCode.isSuccess(returnCode) {
-                print("✅ [FFmpeg Remux] 成功: \(outputPath)")
+                print("✅ [FFmpeg Remux] Success: \(outputPath)")
                 safeCompletion(.success(outputURL))
             } else {
-                let errorMessage = session.getOutput() ?? "未知错误"
-                print("❌ [FFmpeg Remux] 失败: \(String(describing: returnCode?.getValue()))")
+                let errorMessage = session.getOutput() ?? "Unknown error"
+                print("❌ [FFmpeg Remux] Failed: \(String(describing: returnCode?.getValue()))")
                 let lines = errorMessage.split(separator: "\n")
                 let errorLines = lines.suffix(10).joined(separator: "\n")
-                print("错误信息:\n\(errorLines)")
-                safeCompletion(.failure(NSError(domain: "FFmpeg", code: Int(returnCode?.getValue() ?? -1), userInfo: [NSLocalizedDescriptionKey: "remux 失败"])))
+                print("Error message:\n\(errorLines)")
+                safeCompletion(.failure(NSError(domain: "FFmpeg", code: Int(returnCode?.getValue() ?? -1), userInfo: [NSLocalizedDescriptionKey: "Remux failed"])))
             }
         }, withLogCallback: { _ in }, withStatisticsCallback: { _ in })
     }

@@ -2,7 +2,7 @@
 //  CompressionSettingsView.swift
 //  hummingbird
 //
-//  设置视图
+//  Settings View
 //
 
 import SwiftUI
@@ -15,12 +15,12 @@ struct CompressionSettingsView: View {
         NavigationView {
             Form {
                 Section {
-                    Toggle("优先使用 HEIC", isOn: $settings.preferHEIC)
+                    Toggle("Prefer HEIC", isOn: $settings.preferHEIC)
                     
                     if settings.preferHEIC {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("HEIC 质量")
+                                Text("HEIC Quality")
                                 Spacer()
                                 Text("\(Int(settings.heicQuality * 100))%")
                                     .foregroundStyle(.secondary)
@@ -31,7 +31,7 @@ struct CompressionSettingsView: View {
                     
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("JPEG 质量")
+                            Text("JPEG Quality")
                             Spacer()
                             Text("\(Int(settings.jpegQuality * 100))%")
                                 .foregroundStyle(.secondary)
@@ -41,7 +41,7 @@ struct CompressionSettingsView: View {
                     
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("WebP 质量")
+                            Text("WebP Quality")
                             Spacer()
                             Text("\(Int(settings.webpQuality * 100))%")
                                 .foregroundStyle(.secondary)
@@ -49,17 +49,19 @@ struct CompressionSettingsView: View {
                         Slider(value: $settings.webpQuality, in: 0.1...1.0, step: 0.05)
                     }
                 } header: {
-                    Text("图片压缩")
+                    Text("Image Compression")
                 } footer: {
-                    Text("质量越高文件越大，保持原始分辨率。开启 HEIC 后，HEIC 图片将保持 HEIC 格式；关闭后将使用 MozJPEG 转换为 JPEG 格式。WebP 格式会保持原格式压缩。如果压缩后文件反而变大，会自动保留原图")
+                    Text("Higher quality means larger file size, maintains original resolution. When HEIC is enabled, HEIC images will keep HEIC format; when disabled, MozJPEG will convert to JPEG format. WebP format will be compressed in original format. If compressed file is larger, original will be kept automatically")
                 }
                 
                 Section {
-                    // 视频编码器
+                    // Video codec
                     VStack(alignment: .leading, spacing: 8) {
-                        Picker("视频编码器", selection: $settings.videoCodec) {
+                        Picker("Video Codec", selection: $settings.videoCodec) {
                             ForEach(VideoCodec.allCases) { codec in
-                                Text(codec.rawValue).tag(codec)
+                                Text(codec.rawValue)
+                                    .foregroundStyle(codec == settings.videoCodec ? .blue : .primary)
+                                    .tag(codec)
                             }
                         }
                         
@@ -68,25 +70,29 @@ struct CompressionSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     
-                    // 质量预设
-                    Picker("编码速度", selection: $settings.videoQualityPreset) {
+                    // Quality preset
+                    Picker("Encoding Speed", selection: $settings.videoQualityPreset) {
                         ForEach(VideoQualityPreset.allCases) { preset in
-                            Text(preset.rawValue).tag(preset)
+                            Text(preset.rawValue)
+                                .foregroundStyle(preset == settings.videoQualityPreset ? .blue : .primary)
+                                .tag(preset)
                         }
                     }
                     
-                    // CRF 质量模式
-                    Picker("质量等级", selection: $settings.crfQualityMode) {
+                    // CRF quality mode
+                    Picker("Quality Level", selection: $settings.crfQualityMode) {
                         ForEach(CRFQualityMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
+                            Text(mode.rawValue)
+                                .foregroundStyle(mode == settings.crfQualityMode ? .blue : .primary)
+                                .tag(mode)
                         }
                     }
                     
-                    // 自定义 CRF
+                    // Custom CRF
                     if settings.crfQualityMode == .custom {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text("CRF 值")
+                                Text("CRF Value")
                                 Spacer()
                                 Text("\(settings.customCRF)")
                                     .foregroundStyle(.secondary)
@@ -96,32 +102,32 @@ struct CompressionSettingsView: View {
                                 set: { settings.customCRF = Int($0) }
                             ), in: 0...51, step: 1)
                             
-                            Text("CRF 值越小质量越好，文件越大。推荐范围：18-28")
+                            Text("Lower CRF value means better quality but larger file size. Recommended range: 18-28")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
                     
-                    // 硬件解码加速
+                    // Hardware decode acceleration
                     VStack(alignment: .leading, spacing: 4) {
-                        Toggle("硬件解码加速", isOn: $settings.useHardwareAcceleration)
+                        Toggle("Hardware Decode Acceleration", isOn: $settings.useHardwareAcceleration)
                         
-                        Text("使用硬件加速解码输入视频，提升处理速度")
+                        Text("Use hardware acceleration to decode input video, improves processing speed")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     
                 } header: {
-                    Text("视频压缩 (FFmpeg)")
+                    Text("Video Compression (FFmpeg)")
                 } footer: {
-                    Text("H.265提供更高压缩率但需要更多处理时间。可以选择CRF模式（推荐）获得稳定质量。编码速度越慢，压缩效果越好。")
+                    Text("H.265 provides higher compression ratio but requires more processing time. CRF mode (recommended) provides stable quality. Slower encoding speed results in better compression.")
                 }
             }
-            .navigationTitle("压缩设置")
+            .navigationTitle("Compression Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") {
+                    Button("Done") {
                         dismiss()
                     }
                 }

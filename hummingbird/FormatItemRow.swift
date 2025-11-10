@@ -2,7 +2,7 @@
 //  FormatItemRow.swift
 //  hummingbird
 //
-//  格式转换列表项
+//  Format conversion list item
 //
 
 import SwiftUI
@@ -16,7 +16,7 @@ struct FormatItemRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                // 缩略图
+                // Thumbnail
                 ZStack {
                     Color.gray.opacity(0.2)
                     
@@ -33,27 +33,27 @@ struct FormatItemRow: View {
                 .frame(width: 80, height: 80)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 
-                // 信息区域
+                // Information area
                 VStack(alignment: .leading, spacing: 4) {
-                    // 文件类型和格式
+                    // File type and format
                     HStack(spacing: 6) {
                         Image(systemName: item.isVideo ? "video.fill" : "photo.fill")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         
                         if item.status == .completed {
-                            // 显示格式的变化
+                            // Show format changes
                             let originalFormatText = item.originalImageFormat?.rawValue.uppercased() ?? (item.isVideo ? item.fileExtension.uppercased() : "")
                             let outputFormatText = item.outputImageFormat?.rawValue.uppercased() ?? item.outputVideoFormat?.uppercased() ?? ""
                             
                             if !originalFormatText.isEmpty {
                                 if outputFormatText.isEmpty || originalFormatText == outputFormatText {
-                                    // 如果格式没有变化，只显示原始格式
+                                    // If format hasn't changed, only show original format
                                     Text(originalFormatText)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 } else {
-                                    // 如果格式有变化，显示转换前后的格式
+                                    // If format has changed, show before and after formats
                                     Text(originalFormatText)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -66,7 +66,7 @@ struct FormatItemRow: View {
                                 }
                             }
                         } else {
-                            // 未处理完成时只显示原始格式
+                            // When not completed, only show original format
                             if let originalFormat = item.originalImageFormat {
                                 Text(originalFormat.rawValue.uppercased())
                                     .font(.caption)
@@ -79,11 +79,11 @@ struct FormatItemRow: View {
                         }
                     }
                     
-                    // 大小信息
+                    // Size information
                     if item.status == .completed {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 4) {
-                                Text("大小: \(item.formatBytes(item.originalSize)) → \(item.formatBytes(item.compressedSize))")
+                                Text("Size: \(item.formatBytes(item.originalSize)) → \(item.formatBytes(item.compressedSize))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 
@@ -98,33 +98,33 @@ struct FormatItemRow: View {
                                         .foregroundStyle(.green)
                                 }
                             }
-                            // 显示视频时长（仅视频）
+                            // Show video duration (video only)
                             if item.isVideo {
-                                Text("时长: \(item.formatDuration(item.duration))")
+                                Text("Duration: \(item.formatDuration(item.duration))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
                     } else {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("大小: \(item.formatBytes(item.originalSize))")
+                            Text("Size: \(item.formatBytes(item.originalSize))")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            // 显示视频时长（仅视频）
+                            // Show video duration (video only)
                             if item.isVideo {
-                                Text("时长: \(item.formatDuration(item.duration))")
+                                Text("Duration: \(item.formatDuration(item.duration))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
                     }
                     
-                    // 状态信息
+                    // Status information
                     statusView
                 }
             }
             
-            // 保存按钮
+            // Save button
             if item.status == .completed {
                 Button(action: { 
                     Task { await saveToPhotos() }
@@ -132,7 +132,7 @@ struct FormatItemRow: View {
                     HStack(spacing: 6) {
                         Image(systemName: "photo.badge.arrow.down")
                             .font(.subheadline)
-                        Text("保存到相册")
+                        Text("Save to Photos")
                             .font(.subheadline)
                     }
                     .frame(maxWidth: .infinity)
@@ -151,13 +151,13 @@ struct FormatItemRow: View {
             HStack(spacing: 6) {
                 ProgressView()
                     .scaleEffect(0.7)
-                Text("加载中")
+                Text("Loading")
                     .font(.caption)
                     .foregroundStyle(.blue)
             }
             
         case .pending:
-            Text("等待转换")
+            Text("Pending conversion")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             
@@ -165,7 +165,7 @@ struct FormatItemRow: View {
             HStack(spacing: 6) {
                 ProgressView()
                     .scaleEffect(0.7)
-                Text("转换中 \(Int(item.progress * 100))%")
+                Text("Converting \(Int(item.progress * 100))%")
                     .font(.caption)
                     .foregroundStyle(.blue)
             }
@@ -174,7 +174,7 @@ struct FormatItemRow: View {
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
-                Text("转换完成")
+                Text("Conversion complete")
                     .foregroundStyle(.green)
             }
             .font(.caption)
@@ -183,7 +183,7 @@ struct FormatItemRow: View {
             HStack(spacing: 4) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.red)
-                Text(item.errorMessage ?? "转换失败")
+                Text(item.errorMessage ?? "Conversion failed")
                     .foregroundStyle(.red)
             }
             .font(.caption)
@@ -192,7 +192,7 @@ struct FormatItemRow: View {
             HStack(spacing: 6) {
                 ProgressView()
                     .scaleEffect(0.7)
-                Text("处理中 \(Int(item.progress * 100))%")
+                Text("Processing \(Int(item.progress * 100))%")
                     .font(.caption)
                     .foregroundStyle(.blue)
             }
@@ -202,36 +202,36 @@ struct FormatItemRow: View {
     private func saveToPhotos() async {
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         guard status == .authorized else {
-            await showToast("需要相册权限")
+            await showToast("Photo library permission required")
             return
         }
         
         do {
             try await PHPhotoLibrary.shared().performChanges {
                 if item.isVideo, let videoURL = item.compressedVideoURL {
-                    // 保存视频
+                    // Save video
                     PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)
                 } else if let imageData = item.compressedData {
-                    // 保存图片 - 需要特殊处理 WebP 和 HEIC 格式
+                    // Save image - special handling for WebP and HEIC formats
                     guard let image = UIImage(data: imageData) else { return }
                     
-                    // 检查输出格式，如果是 WebP 或 HEIC，转换为 JPEG 保存
-                    // 因为 iOS 相册的 PHAssetChangeRequest 不直接支持这些格式
+                    // Check output format, if WebP or HEIC, convert to JPEG for saving
+                    // Because iOS Photos PHAssetChangeRequest doesn't directly support these formats
                     if item.outputImageFormat == .webp || item.outputImageFormat == .heic {
-                        // 转换为 JPEG 格式保存（高质量）
+                        // Convert to JPEG format for saving (high quality)
                         if let jpegData = image.jpegData(compressionQuality: 0.95) {
                             let request = PHAssetCreationRequest.forAsset()
                             request.addResource(with: .photo, data: jpegData, options: nil)
                         }
                     } else {
-                        // PNG 和 JPEG 可以直接保存
+                        // PNG and JPEG can be saved directly
                         PHAssetChangeRequest.creationRequestForAsset(from: image)
                     }
                 }
             }
-            await showToast("已保存到相册")
+            await showToast("Saved to Photos")
         } catch {
-            await showToast("保存失败: \(error.localizedDescription)")
+            await showToast("Save failed: \(error.localizedDescription)")
         }
     }
     
