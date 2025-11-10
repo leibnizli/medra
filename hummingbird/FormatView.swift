@@ -10,6 +10,7 @@ import PhotosUI
 import AVFoundation
 import Photos
 import SDWebImageWebPCoder
+import ImageIO
 
 struct FormatView: View {
     @State private var selectedItems: [PhotosPickerItem] = []
@@ -99,6 +100,26 @@ struct FormatView: View {
                         }
                         .pickerStyle(.segmented)
                         .frame(width: 140)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    
+                    Divider()
+                        .padding(.leading, 16)
+                    
+                    // Preserve EXIF 开关
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Preserve EXIF Data")
+                                .font(.system(size: 15))
+                                .foregroundStyle(.primary)
+                            Text("Keep photo metadata like camera settings and location")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $settings.preserveExif)
+                            .labelsHidden()
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
@@ -580,8 +601,8 @@ struct FormatView: View {
         }
         print("[convertImage] 原始数据大小: \(originalData.count) bytes")
         
-        // 加载图片并修正方向
-        guard var image = UIImage(data: originalData) else {
+        // 加载图片
+        guard let image = UIImage(data: originalData) else {
             print(" [convertImage] 无法解码图片")
             await MainActor.run {
                 item.status = .failed
@@ -591,9 +612,15 @@ struct FormatView: View {
         }
         print("[convertImage] 图片解码成功，尺寸: \(image.size)")
         
-        // 修正图片方向，避免旋转问题
-        image = image.fixOrientation()
-        print("[convertImage] 图片方向已修正")
+        // 创建 CGImageSource 用于读取元数据
+        guard let imageSource = CGImageSourceCreateWithData(originalData as CFData, nil) else {
+            print(" [convertImage] 无法创建 CGImageSource")
+            await MainActor.run {
+                item.status = .failed
+                item.errorMessage = "无法创建图片源"
+            }
+            return
+        }
         
         await MainActor.run {
             item.progress = 0.3
@@ -614,23 +641,57 @@ struct FormatView: View {
                 break
             }
             
-            // 配置转换选项
-            let options: [CFString: Any] = [
-                kCGImageDestinationLossyCompressionQuality: 1.0,
-                kCGImageDestinationOptimizeColorForSharing: true
-            ]
-            
-            if let cgImage = image.cgImage {
-                CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
-                if CGImageDestinationFinalize(destination) {
-                    convertedData = destinationData as Data
-                    print("[convertImage] JPEG 转换成功，大小: \(destinationData.length) bytes")
+            // 如果需要保留 EXIF 信息，从原始图片源复制元数据
+            if settings.preserveExif {
+                print("[convertImage] preserveExif = true，尝试保留元数据")
+                
+                // 获取原始元数据
+                if let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as NSDictionary? {
+                    print("[convertImage] ✅ 成功读取元数据")
+                    print("[convertImage] 元数据键: \(properties.allKeys)")
+                    
+                    // 获取原始 CGImage
+                    if let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) {
+                        // 创建可变的元数据字典
+                        let mutableProperties = NSMutableDictionary(dictionary: properties)
+                        
+                        // 添加压缩质量选项
+                        mutableProperties[kCGImageDestinationLossyCompressionQuality] = 1.0
+                        
+                        print("[convertImage] 添加图片和元数据到 destination")
+                        CGImageDestinationAddImage(destination, cgImage, mutableProperties as CFDictionary)
+                    } else {
+                        print("⚠️ [convertImage] 无法从 imageSource 创建 CGImage")
+                        if let cgImage = image.cgImage {
+                            CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+                        }
+                    }
                 } else {
-                    print(" [convertImage] JPEG finalize 失败")
-                    convertedData = nil
+                    print("⚠️ [convertImage] 未找到元数据，使用默认方式")
+                    let options: [CFString: Any] = [
+                        kCGImageDestinationLossyCompressionQuality: 1.0
+                    ]
+                    if let cgImage = image.cgImage {
+                        CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+                    }
                 }
             } else {
-                print(" [convertImage] 无法获取 cgImage")
+                print("[convertImage] preserveExif = false，不保留元数据")
+                // 不保留 EXIF，使用修正方向后的图片
+                let fixedImage = image.fixOrientation()
+                let options: [CFString: Any] = [
+                    kCGImageDestinationLossyCompressionQuality: 1.0
+                ]
+                if let cgImage = fixedImage.cgImage {
+                    CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+                }
+            }
+            
+            if CGImageDestinationFinalize(destination) {
+                convertedData = destinationData as Data
+                print("[convertImage] ✅ JPEG 转换成功，大小: \(destinationData.length) bytes")
+            } else {
+                print("❌ [convertImage] JPEG finalize 失败")
                 convertedData = nil
             }
             
@@ -643,32 +704,66 @@ struct FormatView: View {
                 break
             }
             
-            // PNG 特定选项
-            let options: [CFString: Any] = [
-                kCGImageDestinationOptimizeColorForSharing: true
-            ]
-            
-            if let cgImage = image.cgImage {
-                CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
-                if CGImageDestinationFinalize(destination) {
-                    convertedData = destinationData as Data
-                    print("[convertImage] PNG 转换成功，大小: \(destinationData.length) bytes")
+            // 如果需要保留 EXIF 信息，从原始图片源复制元数据
+            if settings.preserveExif {
+                print("[convertImage] preserveExif = true，尝试保留元数据")
+                
+                // 获取原始元数据
+                if let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as NSDictionary? {
+                    print("[convertImage] ✅ 成功读取元数据")
+                    
+                    // 获取原始 CGImage
+                    if let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) {
+                        print("[convertImage] 添加图片和元数据到 destination")
+                        CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+                    } else {
+                        print("⚠️ [convertImage] 无法从 imageSource 创建 CGImage")
+                        if let cgImage = image.cgImage {
+                            CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+                        }
+                    }
                 } else {
-                    print(" [convertImage] PNG finalize 失败")
-                    convertedData = nil
+                    print("⚠️ [convertImage] 未找到元数据，使用默认方式")
+                    if let cgImage = image.cgImage {
+                        CGImageDestinationAddImage(destination, cgImage, nil)
+                    }
                 }
             } else {
-                print(" [convertImage] 无法获取 cgImage")
+                print("[convertImage] preserveExif = false，不保留元数据")
+                // 不保留 EXIF，使用修正方向后的图片
+                let fixedImage = image.fixOrientation()
+                if let cgImage = fixedImage.cgImage {
+                    CGImageDestinationAddImage(destination, cgImage, nil)
+                }
+            }
+            
+            if CGImageDestinationFinalize(destination) {
+                convertedData = destinationData as Data
+                print("[convertImage] ✅ PNG 转换成功，大小: \(destinationData.length) bytes")
+            } else {
+                print("❌ [convertImage] PNG finalize 失败")
                 convertedData = nil
             }
             
         case .webp:
             print("[convertImage] 转换为 WebP")
             let webpCoder = SDImageWebPCoder.shared
+            
+            // WebP 格式对 EXIF 支持有限，但我们尝试保留
+            let imageToEncode: UIImage
+            if settings.preserveExif {
+                // 保留 EXIF 时使用原始图片（保持原始方向）
+                imageToEncode = image
+                print("[convertImage] WebP 使用原始图片（注意：WebP 对 EXIF 支持有限）")
+            } else {
+                // 不保留 EXIF 时修正方向
+                imageToEncode = image.fixOrientation()
+            }
+            
             let options: [SDImageCoderOption: Any] = [
                 .encodeCompressionQuality: 1.0
             ]
-            convertedData = webpCoder.encodedData(with: image, format: .webP, options: options)
+            convertedData = webpCoder.encodedData(with: imageToEncode, format: .webP, options: options)
             if let data = convertedData {
                 print("[convertImage] WebP 转换成功，大小: \(data.count) bytes")
             } else {
@@ -685,23 +780,56 @@ struct FormatView: View {
                     break
                 }
                 
-                // HEIC 特定选项
-                let options: [CFString: Any] = [
-                    kCGImageDestinationLossyCompressionQuality: 1.0,
-                    kCGImageDestinationOptimizeColorForSharing: true
-                ]
-                
-                if let cgImage = image.cgImage {
-                    CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
-                    if CGImageDestinationFinalize(destination) {
-                        convertedData = destinationData as Data
-                        print("[convertImage] HEIC 转换成功，大小: \(destinationData.length) bytes")
+                // 如果需要保留 EXIF 信息，从原始图片源复制元数据
+                if settings.preserveExif {
+                    print("[convertImage] preserveExif = true，尝试保留元数据")
+                    
+                    // 获取原始元数据
+                    if let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as NSDictionary? {
+                        print("[convertImage] ✅ 成功读取元数据")
+                        
+                        // 获取原始 CGImage
+                        if let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) {
+                            // 创建可变的元数据字典
+                            let mutableProperties = NSMutableDictionary(dictionary: properties)
+                            
+                            // 添加压缩质量选项
+                            mutableProperties[kCGImageDestinationLossyCompressionQuality] = 1.0
+                            
+                            print("[convertImage] 添加图片和元数据到 destination")
+                            CGImageDestinationAddImage(destination, cgImage, mutableProperties as CFDictionary)
+                        } else {
+                            print("⚠️ [convertImage] 无法从 imageSource 创建 CGImage")
+                            if let cgImage = image.cgImage {
+                                CGImageDestinationAddImage(destination, cgImage, properties as CFDictionary)
+                            }
+                        }
                     } else {
-                        print(" [convertImage] HEIC finalize 失败")
-                        convertedData = nil
+                        print("⚠️ [convertImage] 未找到元数据，使用默认方式")
+                        let options: [CFString: Any] = [
+                            kCGImageDestinationLossyCompressionQuality: 1.0
+                        ]
+                        if let cgImage = image.cgImage {
+                            CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+                        }
                     }
                 } else {
-                    print(" [convertImage] 无法获取 cgImage")
+                    print("[convertImage] preserveExif = false，不保留元数据")
+                    // 不保留 EXIF，使用修正方向后的图片
+                    let fixedImage = image.fixOrientation()
+                    let options: [CFString: Any] = [
+                        kCGImageDestinationLossyCompressionQuality: 1.0
+                    ]
+                    if let cgImage = fixedImage.cgImage {
+                        CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+                    }
+                }
+                
+                if CGImageDestinationFinalize(destination) {
+                    convertedData = destinationData as Data
+                    print("[convertImage] ✅ HEIC 转换成功，大小: \(destinationData.length) bytes")
+                } else {
+                    print("❌ [convertImage] HEIC finalize 失败")
                     convertedData = nil
                 }
             } else {
@@ -860,67 +988,6 @@ struct FormatView: View {
             }
         }
         print("[convertVideo] 视频转换流程结束")
-    }
-}
-
-// MARK: - 格式转换设置视图
-struct FormatSettingsView: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject var settings: FormatSettings
-    
-    var body: some View {
-        NavigationView {
-            Form {
-                Section {
-                    HStack {
-                        Text("Target Image Format")
-                        Spacer()
-                        Picker("", selection: $settings.targetImageFormat) {
-                            Text("JPEG").tag(ImageFormat.jpeg)
-                            Text("PNG").tag(ImageFormat.png)
-                        }
-                        .pickerStyle(.menu)
-                    }
-                } header: {
-                    Text("Image Format Settings")
-                }
-                
-                Section {
-                    HStack {
-                        Text("Target Video Format")
-                        Spacer()
-                        Picker("Target Video Format", selection: $settings.targetVideoFormat) {
-                            Text("MP4").tag("mp4")
-                            Text("MOV").tag("mov")
-                            Text("M4V").tag("m4v")
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 200)
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Toggle("Use HEVC (H.265) Encoding", isOn: $settings.useHEVC)
-                        
-                        Text("HEVC encoding can reduce file size while maintaining the same quality, but may have lower compatibility than H.264")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .opacity(AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality) ? 1 : 0.5)
-                    .disabled(!AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality))
-                } header: {
-                    Text("Video Format Settings")
-                }
-            }
-            .navigationTitle("Format Conversion Settings")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
     }
 }
 

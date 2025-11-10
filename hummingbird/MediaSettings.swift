@@ -331,6 +331,10 @@ class FormatSettings: ObservableObject {
         didSet { UserDefaults.standard.set(useHEVC, forKey: "useHEVC") }
     }
     
+    @Published var preserveExif: Bool = true {
+        didSet { UserDefaults.standard.set(preserveExif, forKey: "preserveExif") }
+    }
+    
     init() {
         // Load saved settings from UserDefaults
         if let formatRaw = UserDefaults.standard.string(forKey: "targetImageFormat"),
@@ -342,6 +346,9 @@ class FormatSettings: ObservableObject {
         }
         if UserDefaults.standard.object(forKey: "useHEVC") != nil {
             self.useHEVC = UserDefaults.standard.bool(forKey: "useHEVC")
+        }
+        if UserDefaults.standard.object(forKey: "preserveExif") != nil {
+            self.preserveExif = UserDefaults.standard.bool(forKey: "preserveExif")
         }
     }
 }

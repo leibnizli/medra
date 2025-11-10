@@ -212,21 +212,11 @@ struct FormatItemRow: View {
                     // Save video
                     PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)
                 } else if let imageData = item.compressedData {
-                    // Save image - special handling for WebP and HEIC formats
-                    guard let image = UIImage(data: imageData) else { return }
-                    
-                    // Check output format, if WebP or HEIC, convert to JPEG for saving
-                    // Because iOS Photos PHAssetChangeRequest doesn't directly support these formats
-                    if item.outputImageFormat == .webp || item.outputImageFormat == .heic {
-                        // Convert to JPEG format for saving (high quality)
-                        if let jpegData = image.jpegData(compressionQuality: 0.95) {
-                            let request = PHAssetCreationRequest.forAsset()
-                            request.addResource(with: .photo, data: jpegData, options: nil)
-                        }
-                    } else {
-                        // PNG and JPEG can be saved directly
-                        PHAssetChangeRequest.creationRequestForAsset(from: image)
-                    }
+                    // Save image using data to preserve EXIF metadata
+                    // Using PHAssetCreationRequest with addResource preserves all metadata
+                    let request = PHAssetCreationRequest.forAsset()
+                    request.addResource(with: .photo, data: imageData, options: nil)
+                    print("[FormatItemRow] 保存图片，大小: \(imageData.count) bytes，格式: \(item.outputImageFormat?.rawValue ?? "unknown")")
                 }
             }
             await showToast("Saved to Photos")
