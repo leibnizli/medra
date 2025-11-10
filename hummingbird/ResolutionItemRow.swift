@@ -37,15 +37,9 @@ struct ResolutionItemRow: View {
                     HStack {
                         Image(systemName: item.isVideo ? "video.circle.fill" : "photo.circle.fill")
                             .foregroundStyle(item.isVideo ? .blue : .green)
-                        Text(item.isVideo ? "Video" : "Image")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
                         
                         // File extension
                         if !item.fileExtension.isEmpty {
-                            Text("·")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
                             Text(item.fileExtension.uppercased())
                                 .font(.caption)
                                 .fontWeight(.semibold)

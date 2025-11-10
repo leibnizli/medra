@@ -37,9 +37,6 @@ struct CompressionItemRow: View {
                     HStack {
                         Image(systemName: item.isVideo ? "video.circle.fill" : "photo.circle.fill")
                             .foregroundStyle(item.isVideo ? .blue : .green)
-                        Text(item.isVideo ? "Video" : "Image")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
                         
                         // 文件格式
                         if item.status == .completed {
@@ -49,9 +46,6 @@ struct CompressionItemRow: View {
                             if !originalFormat.isEmpty {
                                 if outputFormat.isEmpty || originalFormat == outputFormat {
                                     // 如果格式没有变化或未指定输出格式，只显示原始格式
-                                    Text("·")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
                                     Text(originalFormat)
                                         .font(.caption)
                                         .fontWeight(.semibold)
@@ -62,9 +56,6 @@ struct CompressionItemRow: View {
                                         .clipShape(RoundedRectangle(cornerRadius: 4))
                                 } else {
                                     // 如果格式有变化，显示转换过程
-                                    Text("·")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
                                     Text(originalFormat)
                                         .font(.caption)
                                         .fontWeight(.semibold)
@@ -89,9 +80,6 @@ struct CompressionItemRow: View {
                         } else {
                             // 未完成时只显示原始格式
                             if !item.fileExtension.isEmpty {
-                                Text("·")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
                                 Text(item.fileExtension.uppercased())
                                     .font(.caption)
                                     .fontWeight(.semibold)
