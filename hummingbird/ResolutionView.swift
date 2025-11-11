@@ -70,6 +70,7 @@ struct ResolutionView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.blue)
+                        .disabled(isProcessing || hasLoadingItems)
                         
                         // 右侧：开始按钮
                         Button(action: startBatchResize) {
@@ -208,10 +209,13 @@ struct ResolutionView: View {
                                 .listRowSeparator(.visible)
                         }
                         .onDelete { indexSet in
+                            // 只有在不处理且没有加载项时才允许删除
+                            guard !isProcessing && !hasLoadingItems else { return }
                             withAnimation {
                                 mediaItems.remove(atOffsets: indexSet)
                             }
                         }
+                        .deleteDisabled(isProcessing || hasLoadingItems)
                     }
                     .listStyle(.plain)
                 }

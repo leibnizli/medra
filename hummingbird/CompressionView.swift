@@ -53,6 +53,7 @@ struct CompressionView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.blue)
+                        .disabled(isCompressing || hasLoadingItems)
                         
                         // 右侧：开始按钮
                         Button(action: startBatchCompression) {
@@ -105,10 +106,13 @@ struct CompressionView: View {
                                 .listRowSeparator(.visible)
                         }
                         .onDelete { indexSet in
+                            // 只有在不压缩且没有加载项时才允许删除
+                            guard !isCompressing && !hasLoadingItems else { return }
                             withAnimation {
                                 mediaItems.remove(atOffsets: indexSet)
                             }
                         }
+                        .deleteDisabled(isCompressing || hasLoadingItems)
                     }
                     .listStyle(.plain)
                 }

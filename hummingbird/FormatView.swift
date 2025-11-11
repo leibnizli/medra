@@ -54,6 +54,7 @@ struct FormatView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.blue)
+                        .disabled(isConverting || hasLoadingItems)
                         
                         // 右侧：开始按钮
                         Button(action: startBatchConversion) {
@@ -191,10 +192,13 @@ struct FormatView: View {
                                 .listRowSeparator(.visible)
                         }
                         .onDelete { indexSet in
+                            // 只有在不转换且没有加载项时才允许删除
+                            guard !isConverting && !hasLoadingItems else { return }
                             withAnimation {
                                 mediaItems.remove(atOffsets: indexSet)
                             }
                         }
+                        .deleteDisabled(isConverting || hasLoadingItems)
                     }
                     .listStyle(.plain)
                 }
