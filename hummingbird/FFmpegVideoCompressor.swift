@@ -16,6 +16,7 @@ class FFmpegVideoCompressor {
         inputURL: URL,
         outputURL: URL,
         settings: CompressionSettings,
+        originalFrameRate: Double? = nil,
         progressHandler: @escaping (Float) -> Void,
         completion: @escaping (Result<URL, Error>) -> Void
     ) {
@@ -26,7 +27,8 @@ class FFmpegVideoCompressor {
         // Generate FFmpeg command
         let command = settings.generateFFmpegCommand(
             inputPath: inputURL.path,
-            outputPath: outputURL.path
+            outputPath: outputURL.path,
+            originalFrameRate: originalFrameRate
         )
         
         print("🎬 [FFmpeg] Starting video compression")

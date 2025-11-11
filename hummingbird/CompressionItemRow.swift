@@ -115,9 +115,24 @@ struct CompressionItemRow: View {
                                 Text("Duration: \(item.formatDuration(item.duration))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                Text("Frame Rate: \(item.formatFrameRate(item.frameRate))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                
+                                // 显示帧率变化
+                                if let originalFPS = item.frameRate, let compressedFPS = item.compressedFrameRate {
+                                    // 判断帧率是否有变化（允许0.1的误差）
+                                    if abs(originalFPS - compressedFPS) > 0.1 {
+                                        Text("Frame Rate: \(item.formatFrameRate(originalFPS)) → \(item.formatFrameRate(compressedFPS))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text("Frame Rate: \(item.formatFrameRate(originalFPS))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } else {
+                                    Text("Frame Rate: \(item.formatFrameRate(item.frameRate))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                             
                             HStack {
@@ -145,9 +160,24 @@ struct CompressionItemRow: View {
                                 Text("Duration: \(item.formatDuration(item.duration))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                Text("Frame Rate: \(item.formatFrameRate(item.frameRate))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                
+                                // 显示帧率变化
+                                if let originalFPS = item.frameRate, let compressedFPS = item.compressedFrameRate {
+                                    // 判断帧率是否有变化（允许0.1的误差）
+                                    if abs(originalFPS - compressedFPS) > 0.1 {
+                                        Text("Frame Rate: \(item.formatFrameRate(originalFPS)) → \(item.formatFrameRate(compressedFPS))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text("Frame Rate: \(item.formatFrameRate(originalFPS))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                } else {
+                                    Text("Frame Rate: \(item.formatFrameRate(item.frameRate))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }

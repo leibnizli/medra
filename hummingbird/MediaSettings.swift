@@ -127,6 +127,31 @@ enum CRFQualityMode: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Frame Rate Mode
+enum FrameRateMode: String, CaseIterable, Identifiable {
+    case fps23_98 = "23.98 fps (Film)"
+    case fps24 = "24 fps"
+    case fps25 = "25 fps (PAL)"
+    case fps29_97 = "29.97 fps (NTSC)"
+    case fps30 = "30 fps"
+    case fps60 = "60 fps"
+    case custom = "Custom"
+    
+    var id: String { rawValue }
+    
+    var frameRateValue: Double? {
+        switch self {
+        case .fps23_98: return 23.98
+        case .fps24: return 24.0
+        case .fps25: return 25.0
+        case .fps29_97: return 29.97
+        case .fps30: return 30.0
+        case .fps60: return 60.0
+        case .custom: return nil
+        }
+    }
+}
+
 // MARK: - Compression Settings
 class CompressionSettings: ObservableObject {
     // Image settings
@@ -158,6 +183,12 @@ class CompressionSettings: ObservableObject {
     }
     @Published var useHardwareAcceleration: Bool = true {
         didSet { UserDefaults.standard.set(useHardwareAcceleration, forKey: "useHardwareAcceleration") }
+    }
+    @Published var frameRateMode: FrameRateMode = .fps29_97 {
+        didSet { UserDefaults.standard.set(frameRateMode.rawValue, forKey: "frameRateMode") }
+    }
+    @Published var customFrameRate: Int = 30 {
+        didSet { UserDefaults.standard.set(customFrameRate, forKey: "customFrameRate") }
     }
     
     init() {
@@ -193,6 +224,13 @@ class CompressionSettings: ObservableObject {
         if UserDefaults.standard.object(forKey: "useHardwareAcceleration") != nil {
             self.useHardwareAcceleration = UserDefaults.standard.bool(forKey: "useHardwareAcceleration")
         }
+        if let modeRaw = UserDefaults.standard.string(forKey: "frameRateMode"),
+           let mode = FrameRateMode(rawValue: modeRaw) {
+            self.frameRateMode = mode
+        }
+        if UserDefaults.standard.object(forKey: "customFrameRate") != nil {
+            self.customFrameRate = UserDefaults.standard.integer(forKey: "customFrameRate")
+        }
     }
     
     // Get CRF value
@@ -203,8 +241,16 @@ class CompressionSettings: ObservableObject {
         return customCRF
     }
     
+    // Get target frame rate
+    func getTargetFrameRate() -> Double {
+        if let frameRate = frameRateMode.frameRateValue {
+            return frameRate
+        }
+        return Double(customFrameRate)
+    }
+    
     // Generate FFmpeg command parameters
-    func generateFFmpegCommand(inputPath: String, outputPath: String, videoSize: CGSize? = nil) -> String {
+    func generateFFmpegCommand(inputPath: String, outputPath: String, videoSize: CGSize? = nil, originalFrameRate: Double? = nil) -> String {
         var command = ""
         
         // Hardware acceleration (must be before -i)
@@ -238,6 +284,15 @@ class CompressionSettings: ObservableObject {
         // CRF quality control (constant quality mode)
         let crfValue = getCRFValue()
         command += " -crf \(crfValue)"
+        
+        // Frame rate control - only reduce frame rate if target is lower than original
+        let targetFPS = getTargetFrameRate()
+        if let originalFPS = originalFrameRate, targetFPS < originalFPS {
+            command += " -r \(targetFPS)"
+            print("🎬 [FFmpeg] Reducing frame rate from \(originalFPS) fps to \(targetFPS) fps")
+        } else if let originalFPS = originalFrameRate {
+            print("🎬 [FFmpeg] Keeping original frame rate \(originalFPS) fps (target: \(targetFPS) fps)")
+        }
         
         // Audio encoding
         command += " -c:a aac -b:a 128k"

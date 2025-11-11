@@ -111,6 +111,37 @@ struct CompressionSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     
+                    // Target frame rate
+                    Picker("Target Frame Rate", selection: $settings.frameRateMode) {
+                        ForEach(FrameRateMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    
+                    // Custom frame rate slider
+                    if settings.frameRateMode == .custom {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Custom Frame Rate")
+                                Spacer()
+                                Text("\(settings.customFrameRate) fps")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.customFrameRate) },
+                                set: { settings.customFrameRate = Int($0) }
+                            ), in: 15...120, step: 1)
+                            
+                            Text("Only reduces frame rate if target is lower than original")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        Text("Only reduces frame rate if target is lower than original")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
                 } header: {
                     Text("Video Compression (FFmpeg)")
                 } footer: {

@@ -226,6 +226,7 @@ final class MediaCompressor {
         at sourceURL: URL,
         settings: CompressionSettings,
         outputFileType: AVFileType = .mp4,
+        originalFrameRate: Double? = nil,
         progressHandler: @escaping (Float) -> Void,
         completion: @escaping (Result<URL, Error>) -> Void
     ) -> AVAssetExportSession? {
@@ -251,6 +252,7 @@ final class MediaCompressor {
             inputURL: sourceURL,
             outputURL: outputURL,
             settings: settings,
+            originalFrameRate: originalFrameRate,
             progressHandler: progressHandler,
             completion: completion
         )

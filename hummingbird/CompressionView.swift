@@ -697,6 +697,7 @@ struct CompressionView: View {
                 at: sourceURL,
                 settings: settings,
                 outputFileType: desiredOutputFileType,
+                originalFrameRate: item.frameRate,
                 progressHandler: { progress in
                     Task { @MainActor in
                         item.progress = progress
@@ -741,12 +742,14 @@ struct CompressionView: View {
                                             item.compressedVideoURL = finalURL
                                             item.compressedSize = finalSize
                                             item.compressedResolution = item.originalResolution
+                                            item.compressedFrameRate = item.frameRate  // remux 保持原始帧率
                                             print("✅ [remux] Original video remuxed to \(desiredExt), size: \(finalSize) bytes")
                                         case .failure:
                                             // remux 失败，退回到原始文件
                                             item.compressedVideoURL = sourceURL
                                             item.compressedSize = item.originalSize
                                             item.compressedResolution = item.originalResolution
+                                            item.compressedFrameRate = item.frameRate  // 保持原始帧率
                                             print("⚠️ [remux] Failed, falling back to original video")
                                         }
                                     }
@@ -756,6 +759,7 @@ struct CompressionView: View {
                                 item.compressedVideoURL = sourceURL
                                 item.compressedSize = item.originalSize
                                 item.compressedResolution = item.originalResolution
+                                item.compressedFrameRate = item.frameRate  // 保持原始帧率
                             }
 
                             // 清理压缩后的临时文件（因为没使用它）
@@ -767,12 +771,25 @@ struct CompressionView: View {
                             item.compressedVideoURL = url
                             item.compressedSize = compressedSize
 
-                            let asset = AVURLAsset(url: url)
-                            if let videoTrack = asset.tracks(withMediaType: .video).first {
-                                let size = videoTrack.naturalSize
-                                let transform = videoTrack.preferredTransform
-                                let isPortrait = abs(transform.b) == 1.0 || abs(transform.c) == 1.0
-                                item.compressedResolution = isPortrait ? CGSize(width: size.height, height: size.width) : size
+                            // 获取压缩后的视频信息（分辨率和帧率）
+                            Task {
+                                let asset = AVURLAsset(url: url)
+                                do {
+                                    let tracks = try await asset.loadTracks(withMediaType: .video)
+                                    if let videoTrack = tracks.first {
+                                        let size = try await videoTrack.load(.naturalSize)
+                                        let transform = try await videoTrack.load(.preferredTransform)
+                                        let isPortrait = abs(transform.b) == 1.0 || abs(transform.c) == 1.0
+                                        let nominalFrameRate = try await videoTrack.load(.nominalFrameRate)
+                                        
+                                        await MainActor.run {
+                                            item.compressedResolution = isPortrait ? CGSize(width: size.height, height: size.width) : size
+                                            item.compressedFrameRate = Double(nominalFrameRate)
+                                        }
+                                    }
+                                } catch {
+                                    print("Failed to load compressed video info: \(error)")
+                                }
                             }
                         }
                         

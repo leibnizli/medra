@@ -45,6 +45,9 @@ class MediaItem: Identifiable, ObservableObject {
     // Video frame rate (fps, video only)
     @Published var frameRate: Double?
     
+    // Compressed video frame rate (fps, video only)
+    @Published var compressedFrameRate: Double?
+    
     // Original image format (detected from PhotosPickerItem)
     var originalImageFormat: ImageFormat?
     
