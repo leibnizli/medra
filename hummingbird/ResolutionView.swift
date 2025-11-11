@@ -925,7 +925,14 @@ struct ResolutionView: View {
         }
         
         let composition = AVMutableVideoComposition()
-        composition.frameDuration = CMTime(value: 1, timescale: 30)
+        // 保持原始帧率，不改变
+        let originalFrameRate = videoTrack.nominalFrameRate
+        if originalFrameRate > 0 {
+            composition.frameDuration = CMTime(value: 1, timescale: Int32(originalFrameRate))
+        } else {
+            // 如果无法获取原始帧率，使用默认值 30
+            composition.frameDuration = CMTime(value: 1, timescale: 30)
+        }
         
         let instruction = AVMutableVideoCompositionInstruction()
         instruction.timeRange = CMTimeRange(start: .zero, duration: asset.duration)
