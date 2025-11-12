@@ -104,7 +104,19 @@ struct CompressionItemRow: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             
-                            if let resolution = item.originalResolution {
+                            // 显示分辨率变化
+                            if let originalRes = item.originalResolution, let compressedRes = item.compressedResolution {
+                                // 判断分辨率是否有变化（允许1像素的误差）
+                                if abs(originalRes.width - compressedRes.width) > 1 || abs(originalRes.height - compressedRes.height) > 1 {
+                                    Text("Resolution: \(item.formatResolution(originalRes)) → \(item.formatResolution(compressedRes))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("Resolution: \(item.formatResolution(compressedRes))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else if let resolution = item.originalResolution {
                                 Text("Resolution: \(item.formatResolution(resolution))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)

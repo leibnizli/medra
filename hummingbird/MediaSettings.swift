@@ -190,6 +190,9 @@ class CompressionSettings: ObservableObject {
     @Published var customFrameRate: Int = 30 {
         didSet { UserDefaults.standard.set(customFrameRate, forKey: "customFrameRate") }
     }
+    @Published var targetVideoResolution: VideoResolution = .original {
+        didSet { UserDefaults.standard.set(targetVideoResolution.rawValue, forKey: "targetVideoResolution") }
+    }
     
     init() {
         // Load saved settings from UserDefaults
@@ -230,6 +233,10 @@ class CompressionSettings: ObservableObject {
         }
         if UserDefaults.standard.object(forKey: "customFrameRate") != nil {
             self.customFrameRate = UserDefaults.standard.integer(forKey: "customFrameRate")
+        }
+        if let resolutionRaw = UserDefaults.standard.string(forKey: "targetVideoResolution"),
+           let resolution = VideoResolution(rawValue: resolutionRaw) {
+            self.targetVideoResolution = resolution
         }
     }
     
@@ -285,6 +292,34 @@ class CompressionSettings: ObservableObject {
         let crfValue = getCRFValue()
         command += " -crf \(crfValue)"
         
+        // Resolution scaling - only scale down if target is smaller than original
+        if let originalSize = videoSize, let targetSize = targetVideoResolution.size {
+            let originalWidth = originalSize.width
+            let originalHeight = originalSize.height
+            let targetWidth = targetSize.width
+            let targetHeight = targetSize.height
+            
+            // Only scale if original is larger than target
+            if originalWidth > targetWidth || originalHeight > targetHeight {
+                // Calculate aspect ratio preserving scale
+                let scaleWidth = targetWidth / originalWidth
+                let scaleHeight = targetHeight / originalHeight
+                let scale = min(scaleWidth, scaleHeight)
+                
+                let newWidth = Int(originalWidth * scale)
+                let newHeight = Int(originalHeight * scale)
+                
+                // Ensure dimensions are even (required for video encoding)
+                let evenWidth = (newWidth / 2) * 2
+                let evenHeight = (newHeight / 2) * 2
+                
+                command += " -vf scale=\(evenWidth):\(evenHeight)"
+                print("🎬 [FFmpeg] Scaling video from \(Int(originalWidth))×\(Int(originalHeight)) to \(evenWidth)×\(evenHeight)")
+            } else {
+                print("🎬 [FFmpeg] Keeping original resolution \(Int(originalWidth))×\(Int(originalHeight)) (target: \(Int(targetWidth))×\(Int(targetHeight)))")
+            }
+        }
+        
         // Frame rate control - only reduce frame rate if target is lower than original
         let targetFPS = getTargetFrameRate()
         if let originalFPS = originalFrameRate, targetFPS < originalFPS {
@@ -317,21 +352,31 @@ class CompressionSettings: ObservableObject {
 
 // MARK: - Video Resolution
 enum VideoResolution: String, CaseIterable, Identifiable {
-    case uhd4k = "4K (3840×2160)"
-    case fullHD = "1080p (1920×1080)"
-    case hd = "720p (1280×720)"
-    case sd = "480p (854×480)"
-    case custom = "Custom"
+    case original = "Original"
+    case uhd4k = "4K"
+    case uhd2k = "2K"
+    case fullHD = "1080p"
+    case hd = "720p"
     
     var id: String { rawValue }
     
     var size: CGSize? {
         switch self {
+        case .original: return nil
         case .uhd4k: return CGSize(width: 3840, height: 2160)
+        case .uhd2k: return CGSize(width: 2560, height: 1440)
         case .fullHD: return CGSize(width: 1920, height: 1080)
         case .hd: return CGSize(width: 1280, height: 720)
-        case .sd: return CGSize(width: 854, height: 480)
-        case .custom: return nil
+        }
+    }
+    
+    var displayName: String {
+        switch self {
+        case .original: return "Original"
+        case .uhd4k: return "4K (3840×2160)"
+        case .uhd2k: return "2K (2560×1440)"
+        case .fullHD: return "1080p (1920×1080)"
+        case .hd: return "720p (1280×720)"
         }
     }
 }

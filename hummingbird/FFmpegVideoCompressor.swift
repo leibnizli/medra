@@ -17,6 +17,7 @@ class FFmpegVideoCompressor {
         outputURL: URL,
         settings: CompressionSettings,
         originalFrameRate: Double? = nil,
+        originalResolution: CGSize? = nil,
         progressHandler: @escaping (Float) -> Void,
         completion: @escaping (Result<URL, Error>) -> Void
     ) {
@@ -28,6 +29,7 @@ class FFmpegVideoCompressor {
         let command = settings.generateFFmpegCommand(
             inputPath: inputURL.path,
             outputPath: outputURL.path,
+            videoSize: originalResolution,
             originalFrameRate: originalFrameRate
         )
         

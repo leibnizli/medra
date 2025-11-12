@@ -55,6 +55,19 @@ struct CompressionSettingsView: View {
                 }
                 
                 Section {
+                    // Target resolution
+                    Picker("Target Resolution", selection: $settings.targetVideoResolution) {
+                        ForEach(VideoResolution.allCases) { resolution in
+                            Text(resolution.displayName).tag(resolution)
+                        }
+                    }
+                    
+                    if settings.targetVideoResolution != .original {
+                        Text("Video will be scaled down proportionally if original resolution is larger than target")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
                     // Video codec
                     VStack(alignment: .leading, spacing: 8) {
                         Picker("Video Codec", selection: $settings.videoCodec) {

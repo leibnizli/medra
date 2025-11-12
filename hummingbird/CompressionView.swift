@@ -705,6 +705,7 @@ struct CompressionView: View {
                 settings: settings,
                 outputFileType: desiredOutputFileType,
                 originalFrameRate: item.frameRate,
+                originalResolution: item.originalResolution,
                 progressHandler: { progress in
                     Task { @MainActor in
                         item.progress = progress
