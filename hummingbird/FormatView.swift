@@ -11,6 +11,7 @@ import AVFoundation
 import Photos
 import SDWebImageWebPCoder
 import ImageIO
+import ffmpegkit
 
 struct FormatView: View {
     @State private var selectedItems: [PhotosPickerItem] = []
@@ -471,8 +472,8 @@ struct FormatView: View {
             print("Failed to load video track info: \(error)")
         }
         
-        // 检测视频编码
-        if let codec = MediaItem.detectVideoCodec(from: url) {
+        // 检测视频编码（使用异步版本更可靠）
+        if let codec = await MediaItem.detectVideoCodecAsync(from: url) {
             await MainActor.run {
                 mediaItem.videoCodec = codec
             }
@@ -880,7 +881,7 @@ struct FormatView: View {
         print("[convertVideo] 开始视频转换")
         
         guard let sourceURL = item.sourceVideoURL else {
-            print(" [convertVideo] 无法加载原始视频 URL")
+            print("❌ [convertVideo] 无法加载原始视频 URL")
             await MainActor.run {
                 item.status = .failed
                 item.errorMessage = "无法加载原始视频"
@@ -891,39 +892,21 @@ struct FormatView: View {
         
         let asset = AVURLAsset(url: sourceURL)
         
-        // 获取原始视频信息
-        guard let videoTrack = try? await asset.loadTracks(withMediaType: .video).first else {
-            print(" [convertVideo] 无法获取视频轨道信息")
-            await MainActor.run {
-                item.status = .failed
-                item.errorMessage = "无法获取视频轨道信息"
-            }
-            return
-        }
-        print("[convertVideo] 视频轨道获取成功")
-        
-        // 选择合适的预设
-        let presetName: String
-        if settings.useHEVC && AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality) {
-            presetName = AVAssetExportPresetHEVCHighestQuality
-            print("[convertVideo] 使用 HEVC 预设")
-        } else {
-            presetName = AVAssetExportPresetHighestQuality
-            print("[convertVideo] 使用标准高质量预设")
-        }
-        
-        // 创建导出会话
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: presetName) else {
-            print(" [convertVideo] 无法创建导出会话")
-            await MainActor.run {
-                item.status = .failed
-                item.errorMessage = "无法创建导出会话"
-            }
-            return
-        }
-        print("[convertVideo] 导出会话创建成功")
+        // 检测原始视频编码
+        var originalCodec = item.videoCodec ?? "Unknown"
+        let isOriginalHEVC = (originalCodec == "HEVC")
+        var targetIsHEVC = settings.useHEVC
         
         let fileExtension = settings.targetVideoFormat
+        
+        // M4V 容器不支持 HEVC，强制使用 H.264
+        if fileExtension.lowercased() == "m4v" && targetIsHEVC {
+            targetIsHEVC = false
+            print("⚠️ [convertVideo] M4V 容器不支持 HEVC，强制使用 H.264")
+        }
+        
+        print("[convertVideo] 原始编码: \(originalCodec), 目标编码: \(targetIsHEVC ? "HEVC" : "H.264")")
+        
         let outputURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("converted_\(UUID().uuidString)")
             .appendingPathExtension(fileExtension)
@@ -931,79 +914,191 @@ struct FormatView: View {
         print("[convertVideo] 目标格式: \(fileExtension)")
         print("[convertVideo] 输出 URL: \(outputURL.path)")
         
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = {
-            switch fileExtension {
-            case "mov": return .mov
-            case "m4v": return .m4v
-            default: return .mp4
+        // 判断是否只需要容器转换（不需要重新编码）
+        let needsReencoding = (isOriginalHEVC != targetIsHEVC)
+        
+        if !needsReencoding {
+            // 只需要容器转换，使用 FFmpeg remux（无损、快速）
+            print("🎬 [convertVideo] 只需容器转换，使用 FFmpeg remux")
+            
+            await withCheckedContinuation { continuation in
+                FFmpegVideoCompressor.remux(inputURL: sourceURL, outputURL: outputURL) { result in
+                    Task { @MainActor in
+                        switch result {
+                        case .success(let url):
+                            print("✅ [convertVideo] Remux 成功")
+                            item.compressedVideoURL = url
+                            if let data = try? Data(contentsOf: url) {
+                                item.compressedSize = data.count
+                                print("[convertVideo] 输出文件大小: \(data.count) bytes")
+                            }
+                            
+                            let resultAsset = AVURLAsset(url: url)
+                            if let videoTrack = resultAsset.tracks(withMediaType: .video).first {
+                                let size = videoTrack.naturalSize
+                                let transform = videoTrack.preferredTransform
+                                let isPortrait = abs(transform.b) == 1.0 || abs(transform.c) == 1.0
+                                item.compressedResolution = isPortrait ? CGSize(width: size.height, height: size.width) : size
+                            }
+                            
+                            // 检测转换后的视频编码
+                            if let codec = MediaItem.detectVideoCodec(from: url) {
+                                item.compressedVideoCodec = codec
+                            }
+                            
+                            item.outputVideoFormat = fileExtension
+                            item.status = .completed
+                            item.progress = 1.0
+                            
+                        case .failure(let error):
+                            print("❌ [convertVideo] Remux 失败: \(error.localizedDescription)")
+                            item.status = .failed
+                            item.errorMessage = error.localizedDescription
+                        }
+                        continuation.resume()
+                    }
+                }
             }
-        }()
-        exportSession.shouldOptimizeForNetworkUse = true
-        print("[convertVideo] 导出会话配置完成")
-        
-        // 使用 AVFoundation 自动处理旋转和方向
-        // 通过 videoComposition(withPropertiesOf:) 可以自动应用正确的变换
-        do {
-            let videoComposition = try await AVMutableVideoComposition.videoComposition(withPropertiesOf: asset)
-            exportSession.videoComposition = videoComposition
-            print("[convertVideo] 视频合成创建成功")
-        } catch {
-            print("⚠️ [convertVideo] 创建视频合成失败，将使用默认设置: \(error)")
-            // 如果自动创建失败，不设置 videoComposition，让系统使用默认处理
-        }
-        
-        print("[convertVideo] 开始导出视频")
-        let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { t in
-            Task { @MainActor in
-                item.progress = exportSession.progress
+        } else {
+            // 需要重新编码，使用 FFmpeg 以保持原始比特率
+            print("🎬 [convertVideo] 需要重新编码，使用 FFmpeg")
+            
+            // 获取原始视频的比特率
+            var originalBitrate: Int = 0
+            if let videoTrack = try? await asset.loadTracks(withMediaType: .video).first {
+                let estimatedDataRate = try? await videoTrack.load(.estimatedDataRate)
+                if let dataRate = estimatedDataRate, dataRate > 0 {
+                    originalBitrate = Int(dataRate)
+                    print("[convertVideo] 原始比特率: \(originalBitrate) bps (\(originalBitrate/1000) kbps)")
+                }
             }
-            if exportSession.status != .exporting { t.invalidate() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        
-        await exportSession.export()
-        print("[convertVideo] 导出完成，状态: \(exportSession.status.rawValue)")
-        
-        await MainActor.run {
-            switch exportSession.status {
-            case .completed:
-                print("[convertVideo] 视频导出成功")
-                item.compressedVideoURL = outputURL
-                if let data = try? Data(contentsOf: outputURL) {
-                    item.compressedSize = data.count
-                    print("[convertVideo] 输出文件大小: \(data.count) bytes")
-                }
+            
+            // 如果无法获取比特率，使用默认值
+            if originalBitrate == 0 {
+                originalBitrate = 2_000_000 // 默认 2 Mbps
+                print("[convertVideo] 使用默认比特率: \(originalBitrate) bps")
+            }
+            
+            // 构建 FFmpeg 命令
+            let codec = targetIsHEVC ? "hevc_videotoolbox" : "h264_videotoolbox"
+            let bitrateKbps = originalBitrate / 1000
+            
+            var command = "-i \"\(sourceURL.path)\""
+            command += " -c:v \(codec)"
+            command += " -b:v \(bitrateKbps)k"  // 使用原始比特率
+            command += " -c:a aac -b:a 128k"
+            command += " -pix_fmt yuv420p"  // 确保像素格式兼容
+            
+            // 如果是 HEVC，添加兼容性标签
+            if targetIsHEVC {
+                command += " -tag:v hvc1"
+            }
+            
+            command += " -movflags +faststart"
+            command += " \"\(outputURL.path)\""
+            
+            print("[convertVideo] FFmpeg 命令: ffmpeg \(command)")
+            
+            await withCheckedContinuation { continuation in
+                // 获取视频时长用于进度计算
+                let duration = CMTimeGetSeconds(asset.duration)
                 
-                let resultAsset = AVURLAsset(url: outputURL)
-                if let videoTrack = resultAsset.tracks(withMediaType: .video).first {
-                    let size = videoTrack.naturalSize
-                    let transform = videoTrack.preferredTransform
-                    let isPortrait = abs(transform.b) == 1.0 || abs(transform.c) == 1.0
-                    item.compressedResolution = isPortrait ? CGSize(width: size.height, height: size.width) : size
-                    print("[convertVideo] 输出分辨率: \(item.compressedResolution!)")
-                }
-                
-                // 检测转换后的视频编码
-                if let codec = MediaItem.detectVideoCodec(from: outputURL) {
-                    item.compressedVideoCodec = codec
-                }
-                
-                item.outputVideoFormat = fileExtension
-                item.status = .completed
-                item.progress = 1.0
-                
-                print("[Format Conversion] Video -> \(fileExtension.uppercased()) - Size: \(item.compressedSize) bytes")
-            default:
-                print(" [convertVideo] 视频导出失败，状态: \(exportSession.status.rawValue)")
-                if let error = exportSession.error {
-                    print(" [convertVideo] 错误信息: \(error.localizedDescription)")
-                }
-                item.status = .failed
-                item.errorMessage = exportSession.error?.localizedDescription ?? "转换失败"
+                FFmpegKit.executeAsync(command, withCompleteCallback: { session in
+                    guard let session = session else {
+                        Task { @MainActor in
+                            item.status = .failed
+                            item.errorMessage = "FFmpeg session 创建失败"
+                            continuation.resume()
+                        }
+                        return
+                    }
+                    
+                    let returnCode = session.getReturnCode()
+                    
+                    Task { @MainActor in
+                        if ReturnCode.isSuccess(returnCode) {
+                            print("✅ [convertVideo] FFmpeg 转换成功")
+                            item.compressedVideoURL = outputURL
+                            if let data = try? Data(contentsOf: outputURL) {
+                                item.compressedSize = data.count
+                                print("[convertVideo] 输出文件大小: \(data.count) bytes")
+                            }
+                            
+                            let resultAsset = AVURLAsset(url: outputURL)
+                            if let videoTrack = resultAsset.tracks(withMediaType: .video).first {
+                                let size = videoTrack.naturalSize
+                                let transform = videoTrack.preferredTransform
+                                let isPortrait = abs(transform.b) == 1.0 || abs(transform.c) == 1.0
+                                item.compressedResolution = isPortrait ? CGSize(width: size.height, height: size.width) : size
+                            }
+                            
+                            // 检测转换后的视频编码（使用异步版本）
+                            Task {
+                                if let codec = await MediaItem.detectVideoCodecAsync(from: outputURL) {
+                                    await MainActor.run {
+                                        item.compressedVideoCodec = codec
+                                    }
+                                }
+                            }
+                            
+                            item.outputVideoFormat = fileExtension
+                            item.status = .completed
+                            item.progress = 1.0
+                        } else {
+                            print("❌ [convertVideo] FFmpeg 转换失败")
+                            let errorMessage = session.getOutput() ?? "未知错误"
+                            let lines = errorMessage.split(separator: "\n")
+                            let errorLines = lines.suffix(5).joined(separator: "\n")
+                            print("错误信息:\n\(errorLines)")
+                            
+                            item.status = .failed
+                            item.errorMessage = "视频转换失败"
+                        }
+                        continuation.resume()
+                    }
+                }, withLogCallback: { log in
+                    guard let log = log else { return }
+                    let message = log.getMessage() ?? ""
+                    
+                    // 解析进度
+                    if message.contains("time=") {
+                        if let timeRange = message.range(of: "time=([0-9:.]+)", options: .regularExpression) {
+                            let timeString = String(message[timeRange]).replacingOccurrences(of: "time=", with: "")
+                            if let currentTime = self.parseTimeString(timeString), duration > 0 {
+                                let progress = Float(currentTime / duration)
+                                Task { @MainActor in
+                                    item.progress = min(progress, 0.99)
+                                }
+                            }
+                        }
+                    }
+                }, withStatisticsCallback: { statistics in
+                    guard let statistics = statistics else { return }
+                    let time = Double(statistics.getTime()) / 1000.0
+                    if duration > 0 {
+                        let progress = Float(time / duration)
+                        Task { @MainActor in
+                            item.progress = min(progress, 0.99)
+                        }
+                    }
+                })
             }
         }
         print("[convertVideo] 视频转换流程结束")
+    }
+    
+    // 解析时间字符串 (HH:MM:SS.ms)
+    private func parseTimeString(_ timeString: String) -> Double? {
+        let components = timeString.split(separator: ":")
+        guard components.count == 3 else { return nil }
+        
+        guard let hours = Double(components[0]),
+              let minutes = Double(components[1]),
+              let seconds = Double(components[2]) else {
+            return nil
+        }
+        
+        return hours * 3600 + minutes * 60 + seconds
     }
 }
 

@@ -143,7 +143,7 @@ struct CompressionSettingsView: View {
                     }
                     
                 } header: {
-                    Text("Video Compression (FFmpeg)")
+                    Text("Video Compression")
                 } footer: {
                     Text("H.265 provides higher compression ratio but requires more processing time. CRF mode (recommended) provides stable quality. Slower encoding speed results in better compression.")
                 }

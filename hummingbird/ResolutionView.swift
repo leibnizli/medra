@@ -548,8 +548,8 @@ struct ResolutionView: View {
             print("Failed to load video track info: \(error)")
         }
         
-        // 检测视频编码
-        if let codec = MediaItem.detectVideoCodec(from: url) {
+        // 检测视频编码（使用异步版本更可靠）
+        if let codec = await MediaItem.detectVideoCodecAsync(from: url) {
             await MainActor.run {
                 mediaItem.videoCodec = codec
             }
@@ -940,9 +940,13 @@ struct ResolutionView: View {
                     item.compressedResolution = isPortrait ? CGSize(width: size.height, height: size.width) : size
                 }
                 
-                // 检测调整后的视频编码
-                if let codec = MediaItem.detectVideoCodec(from: outputURL) {
-                    item.compressedVideoCodec = codec
+                // 检测调整后的视频编码（使用异步版本）
+                Task {
+                    if let codec = await MediaItem.detectVideoCodecAsync(from: outputURL) {
+                        await MainActor.run {
+                            item.compressedVideoCodec = codec
+                        }
+                    }
                 }
                 
                 item.status = .completed

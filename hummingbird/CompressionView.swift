@@ -472,8 +472,8 @@ struct CompressionView: View {
             print("Failed to load video track info: \(error)")
         }
         
-        // 检测视频编码
-        if let codec = MediaItem.detectVideoCodec(from: url) {
+        // 检测视频编码（使用异步版本更可靠）
+        if let codec = await MediaItem.detectVideoCodecAsync(from: url) {
             await MainActor.run {
                 mediaItem.videoCodec = codec
             }
@@ -801,8 +801,8 @@ struct CompressionView: View {
                                     print("Failed to load compressed video info: \(error)")
                                 }
                                 
-                                // 检测压缩后的编码
-                                if let codec = MediaItem.detectVideoCodec(from: url) {
+                                // 检测压缩后的编码（使用异步版本）
+                                if let codec = await MediaItem.detectVideoCodecAsync(from: url) {
                                     await MainActor.run {
                                         item.compressedVideoCodec = codec
                                     }

@@ -230,23 +230,142 @@ struct FormatItemRow: View {
             return
         }
         
+        // 如果是视频，先在外部处理导出
+        var videoURLToSave: URL?
+        
+        if item.isVideo, let videoURL = item.compressedVideoURL {
+            // 检查文件是否存在
+            guard FileManager.default.fileExists(atPath: videoURL.path) else {
+                print("❌ [FormatItemRow] 视频文件不存在: \(videoURL.path)")
+                await showToast("Video file not found")
+                return
+            }
+            
+            print("[FormatItemRow] 保存视频: \(videoURL.path)")
+            
+            // 检查视频编码和容器
+            let asset = AVURLAsset(url: videoURL)
+            var codecInfo = "Unknown"
+            
+            if let videoTrack = asset.tracks(withMediaType: .video).first {
+                let formatDescriptions = videoTrack.formatDescriptions as! [CMFormatDescription]
+                if let formatDescription = formatDescriptions.first {
+                    let codecType = CMFormatDescriptionGetMediaSubType(formatDescription)
+                    let isHEVC = (codecType == kCMVideoCodecType_HEVC || codecType == kCMVideoCodecType_HEVCWithAlpha)
+                    let isH264 = (codecType == kCMVideoCodecType_H264)
+                    codecInfo = isHEVC ? "HEVC" : (isH264 ? "H.264" : "Other")
+                }
+            }
+            
+            let containerType = videoURL.pathExtension.lowercased()
+            print("[FormatItemRow] 视频信息: 编码=\(codecInfo), 容器=\(containerType)")
+            
+            // 使用 AVAssetExportSession 重新导出为相册兼容格式
+            let compatibleURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("save_\(UUID().uuidString).mov")
+            
+            print("[FormatItemRow] 使用 AVAssetExportSession 导出兼容格式")
+            
+            guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
+                print("❌ [FormatItemRow] 无法创建导出会话")
+                await showToast("Failed to create export session")
+                return
+            }
+            
+            exportSession.outputURL = compatibleURL
+            exportSession.outputFileType = .mov
+            exportSession.shouldOptimizeForNetworkUse = true
+            
+            // 异步等待导出完成
+            await exportSession.export()
+            
+            if exportSession.status == .completed {
+                // 验证导出的文件
+                guard FileManager.default.fileExists(atPath: compatibleURL.path) else {
+                    print("❌ [FormatItemRow] 导出的文件不存在")
+                    await showToast("Export failed")
+                    return
+                }
+                
+                let fileSize = (try? FileManager.default.attributesOfItem(atPath: compatibleURL.path)[.size] as? Int) ?? 0
+                print("✅ [FormatItemRow] 导出成功，文件大小: \(fileSize) bytes")
+                videoURLToSave = compatibleURL
+            } else {
+                print("❌ [FormatItemRow] 导出失败: \(exportSession.error?.localizedDescription ?? "未知错误")")
+                // 如果导出失败，尝试直接保存原文件
+                print("⚠️ [FormatItemRow] 尝试直接保存原文件")
+                videoURLToSave = videoURL
+            }
+        }
+        
+        // 现在执行保存操作
         do {
-            try await PHPhotoLibrary.shared().performChanges {
-                if item.isVideo, let videoURL = item.compressedVideoURL {
-                    // Save video
+            if let videoURL = videoURLToSave {
+                print("✅ [FormatItemRow] 开始保存视频到相册: \(videoURL.path)")
+                
+                // 使用最简单的方式：PHPhotoLibrary.shared().performChanges
+                // 直接使用 PHAssetChangeRequest.creationRequestForAssetFromVideo
+                try await PHPhotoLibrary.shared().performChanges {
                     PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)
-                } else if let imageData = item.compressedData {
-                    // Save image using data to preserve EXIF metadata
-                    // Using PHAssetCreationRequest with addResource preserves all metadata
+                }
+                
+                await showToast("Saved to Photos")
+                print("✅ [FormatItemRow] 保存成功")
+                
+                // 清理临时文件
+                if videoURL != item.compressedVideoURL {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        try? FileManager.default.removeItem(at: videoURL)
+                    }
+                }
+            } else if let imageData = item.compressedData {
+                // Save image using data to preserve EXIF metadata
+                try await PHPhotoLibrary.shared().performChanges {
                     let request = PHAssetCreationRequest.forAsset()
                     request.addResource(with: .photo, data: imageData, options: nil)
                     print("[FormatItemRow] 保存图片，大小: \(imageData.count) bytes，格式: \(item.outputImageFormat?.rawValue ?? "unknown")")
                 }
+                
+                await showToast("Saved to Photos")
+                print("✅ [FormatItemRow] 保存成功")
             }
-            await showToast("Saved to Photos")
         } catch {
-            await showToast("Save failed: \(error.localizedDescription)")
+            print("❌ [FormatItemRow] 保存失败: \(error.localizedDescription)")
+            print("❌ [FormatItemRow] 错误详情: \(error)")
+            
+            // 如果保存失败，尝试使用系统分享功能
+            if let videoURL = videoURLToSave {
+                await showToast("Trying alternative save method...")
+                await saveVideoUsingShareSheet(videoURL)
+            } else {
+                await showToast("Save failed: \(error.localizedDescription)")
+            }
         }
+    }
+    
+    // 备用方案：使用系统分享功能保存
+    @MainActor
+    private func saveVideoUsingShareSheet(_ url: URL) async {
+        // 这个方法可以让用户手动选择保存到相册
+        print("[FormatItemRow] 使用分享功能保存视频")
+        
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              let rootViewController = window.rootViewController else {
+            await showToast("Cannot access view controller")
+            return
+        }
+        
+        let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        
+        // iPad 需要设置 popover
+        if let popover = activityVC.popoverPresentationController {
+            popover.sourceView = rootViewController.view
+            popover.sourceRect = CGRect(x: rootViewController.view.bounds.midX, y: rootViewController.view.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        
+        rootViewController.present(activityVC, animated: true)
     }
     
     @MainActor

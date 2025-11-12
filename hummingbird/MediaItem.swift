@@ -124,7 +124,7 @@ class MediaItem: Identifiable, ObservableObject {
         return String(format: "%.2f fps", frameRate)
     }
     
-    // Detect video codec from URL
+    // Detect video codec from URL (synchronous version)
     static func detectVideoCodec(from url: URL) -> String? {
         let asset = AVURLAsset(url: url)
         guard let videoTrack = asset.tracks(withMediaType: .video).first else {
@@ -138,23 +138,74 @@ class MediaItem: Identifiable, ObservableObject {
         
         let codecType = CMFormatDescriptionGetMediaSubType(formatDescription)
         
-        // Check codec type
-        if codecType == kCMVideoCodecType_HEVC || codecType == kCMVideoCodecType_HEVCWithAlpha {
+        return codecTypeToString(codecType)
+    }
+    
+    // Detect video codec from URL (async version - more reliable)
+    static func detectVideoCodecAsync(from url: URL) async -> String? {
+        let asset = AVURLAsset(url: url)
+        
+        do {
+            let tracks = try await asset.loadTracks(withMediaType: .video)
+            guard let videoTrack = tracks.first else {
+                return nil
+            }
+            
+            let formatDescriptions = videoTrack.formatDescriptions as! [CMFormatDescription]
+            guard let formatDescription = formatDescriptions.first else {
+                return nil
+            }
+            
+            let codecType = CMFormatDescriptionGetMediaSubType(formatDescription)
+            
+            let codecString = codecTypeToString(codecType)
+            print("🎬 [detectVideoCodecAsync] 检测到编码: \(codecString ?? "Unknown"), FourCC: \(String(format: "0x%08X", codecType))")
+            
+            return codecString
+        } catch {
+            print("❌ [detectVideoCodecAsync] 检测失败: \(error)")
+            return nil
+        }
+    }
+    
+    // Convert codec type to string
+    private static func codecTypeToString(_ codecType: CMVideoCodecType) -> String? {
+        // 将 FourCC 转换为字符串用于调试
+        let fourCCString = String(format: "%c%c%c%c",
+                          (codecType >> 24) & 0xff,
+                          (codecType >> 16) & 0xff,
+                          (codecType >> 8) & 0xff,
+                          codecType & 0xff)
+        
+        // Check codec type using both constants and FourCC codes
+        switch codecType {
+        // HEVC variants
+        case kCMVideoCodecType_HEVC,
+             kCMVideoCodecType_HEVCWithAlpha,
+             0x68766331, // 'hvc1'
+             0x68657631: // 'hev1'
             return "HEVC"
-        } else if codecType == kCMVideoCodecType_H264 {
+            
+        // H.264 variants
+        case kCMVideoCodecType_H264,
+             0x61766331, // 'avc1'
+             0x61766333: // 'avc3'
             return "H.264"
-        } else if codecType == kCMVideoCodecType_MPEG4Video {
+            
+        // MPEG-4
+        case kCMVideoCodecType_MPEG4Video,
+             0x6d703476: // 'mp4v'
             return "MPEG-4"
-        } else if codecType == kCMVideoCodecType_VP9 {
+            
+        // VP9
+        case kCMVideoCodecType_VP9,
+             0x76703039: // 'vp09'
             return "VP9"
-        } else {
-            // Return codec as FourCC string
-            let fourCC = String(format: "%c%c%c%c",
-                              (codecType >> 24) & 0xff,
-                              (codecType >> 16) & 0xff,
-                              (codecType >> 8) & 0xff,
-                              codecType & 0xff)
-            return fourCC
+            
+        default:
+            // 返回 FourCC 字符串
+            print("⚠️ [codecTypeToString] 未知编码: \(fourCCString) (0x\(String(format: "%08X", codecType)))")
+            return fourCCString
         }
     }
     
