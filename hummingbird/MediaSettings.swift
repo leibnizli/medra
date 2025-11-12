@@ -193,6 +193,9 @@ class CompressionSettings: ObservableObject {
     @Published var targetVideoResolution: VideoResolution = .original {
         didSet { UserDefaults.standard.set(targetVideoResolution.rawValue, forKey: "targetVideoResolution") }
     }
+    @Published var targetOrientationMode: VideoOrientationMode = .auto {
+        didSet { UserDefaults.standard.set(targetOrientationMode.rawValue, forKey: "targetOrientationMode") }
+    }
     
     init() {
         // Load saved settings from UserDefaults
@@ -237,6 +240,10 @@ class CompressionSettings: ObservableObject {
         if let resolutionRaw = UserDefaults.standard.string(forKey: "targetVideoResolution"),
            let resolution = VideoResolution(rawValue: resolutionRaw) {
             self.targetVideoResolution = resolution
+        }
+        if let orientationRaw = UserDefaults.standard.string(forKey: "targetOrientationMode"),
+           let orientation = VideoOrientationMode(rawValue: orientationRaw) {
+            self.targetOrientationMode = orientation
         }
     }
     
@@ -293,11 +300,19 @@ class CompressionSettings: ObservableObject {
         command += " -crf \(crfValue)"
         
         // Resolution scaling - only scale down if target is smaller than original
-        if let originalSize = videoSize, let targetSize = targetVideoResolution.size {
+        if let originalSize = videoSize, let targetSize = targetVideoResolution.size(for: targetOrientationMode, originalSize: originalSize) {
             let originalWidth = originalSize.width
             let originalHeight = originalSize.height
             let targetWidth = targetSize.width
             let targetHeight = targetSize.height
+            
+            // Detect original orientation
+            let originalOrientation = originalWidth >= originalHeight ? "Landscape" : "Portrait"
+            let targetOrientation = targetWidth >= targetHeight ? "Landscape" : "Portrait"
+            
+            print("🎬 [FFmpeg] Original: \(Int(originalWidth))×\(Int(originalHeight)) (\(originalOrientation))")
+            print("🎬 [FFmpeg] Target: \(Int(targetWidth))×\(Int(targetHeight)) (\(targetOrientation))")
+            print("🎬 [FFmpeg] Orientation Mode: \(targetOrientationMode.rawValue)")
             
             // Only scale if original is larger than target
             if originalWidth > targetWidth || originalHeight > targetHeight {
@@ -350,6 +365,23 @@ class CompressionSettings: ObservableObject {
     }
 }
 
+// MARK: - Video Orientation Mode
+enum VideoOrientationMode: String, CaseIterable, Identifiable {
+    case auto = "Auto"
+    case landscape = "Landscape"
+    case portrait = "Portrait"
+    
+    var id: String { rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .auto: return "Auto"
+        case .landscape: return "Landscape"
+        case .portrait: return "Portrait"
+        }
+    }
+}
+
 // MARK: - Video Resolution
 enum VideoResolution: String, CaseIterable, Identifiable {
     case original = "Original"
@@ -360,13 +392,41 @@ enum VideoResolution: String, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
-    var size: CGSize? {
+    // Get size based on orientation
+    func size(for orientation: VideoOrientationMode, originalSize: CGSize?) -> CGSize? {
+        // If original, return nil (no scaling)
+        if self == .original {
+            return nil
+        }
+        
+        // Determine target orientation
+        let targetOrientation: VideoOrientationMode
+        if orientation == .auto {
+            // Auto: detect from original video
+            if let original = originalSize {
+                targetOrientation = original.width >= original.height ? .landscape : .portrait
+            } else {
+                targetOrientation = .landscape // Default to landscape if unknown
+            }
+        } else {
+            targetOrientation = orientation
+        }
+        
+        // Get base size (landscape)
+        let baseSize: CGSize
         switch self {
         case .original: return nil
-        case .uhd4k: return CGSize(width: 3840, height: 2160)
-        case .uhd2k: return CGSize(width: 2560, height: 1440)
-        case .fullHD: return CGSize(width: 1920, height: 1080)
-        case .hd: return CGSize(width: 1280, height: 720)
+        case .uhd4k: baseSize = CGSize(width: 3840, height: 2160)
+        case .uhd2k: baseSize = CGSize(width: 2560, height: 1440)
+        case .fullHD: baseSize = CGSize(width: 1920, height: 1080)
+        case .hd: baseSize = CGSize(width: 1280, height: 720)
+        }
+        
+        // Swap dimensions for portrait
+        if targetOrientation == .portrait {
+            return CGSize(width: baseSize.height, height: baseSize.width)
+        } else {
+            return baseSize
         }
     }
     

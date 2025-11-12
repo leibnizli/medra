@@ -62,7 +62,27 @@ struct CompressionSettingsView: View {
                         }
                     }
                     
+                    // Target orientation mode
                     if settings.targetVideoResolution != .original {
+                        Picker("Target Orientation", selection: $settings.targetOrientationMode) {
+                            ForEach(VideoOrientationMode.allCases) { mode in
+                                Text(mode.displayName).tag(mode)
+                            }
+                        }
+                        
+                        // Explanation text
+                        VStack(alignment: .leading, spacing: 4) {
+                            if settings.targetOrientationMode == .auto {
+                                Text("Auto: Target resolution will match the original video's orientation")
+                            } else if settings.targetOrientationMode == .landscape {
+                                Text("Landscape: Target resolution will be in landscape format (e.g., 1920×1080)")
+                            } else {
+                                Text("Portrait: Target resolution will be in portrait format (e.g., 1080×1920)")
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        
                         Text("Video will be scaled down proportionally if original resolution is larger than target")
                             .font(.caption)
                             .foregroundStyle(.secondary)
