@@ -26,6 +26,22 @@ struct FormatView: View {
         mediaItems.contains { $0.status == .loading }
     }
     
+    // 当前选择的媒体类型
+    private var currentMediaType: MediaType? {
+        guard let firstItem = mediaItems.first else { return nil }
+        return firstItem.isVideo ? .video : .image
+    }
+    
+    // M4V 格式是否被选中
+    private var isM4VSelected: Bool {
+        settings.targetVideoFormat.lowercased() == "m4v"
+    }
+    
+    enum MediaType {
+        case image
+        case video
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -90,84 +106,94 @@ struct FormatView: View {
                 
                 // 设置区域
                 VStack(spacing: 0) {
-                    // 图片格式设置
-                    HStack {
-                        Text("Target Image Format")
-                            .font(.system(size: 15))
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Picker("", selection: $settings.targetImageFormat) {
-                            Text("JPEG").tag(ImageFormat.jpeg)
-                            Text("PNG").tag(ImageFormat.png)
-                        }
-                        .pickerStyle(.segmented)
-                        .frame(width: 140)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    
-                    Divider()
-                        .padding(.leading, 16)
-                    
-                    // Preserve EXIF 开关
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Preserve EXIF Data")
+                    // 图片格式设置（仅当选择图片时显示）
+                    if currentMediaType == .image || currentMediaType == nil {
+                        HStack {
+                            Text("Target Image Format")
                                 .font(.system(size: 15))
                                 .foregroundStyle(.primary)
-                            Text("Keep photo metadata like camera settings and location")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Picker("", selection: $settings.targetImageFormat) {
+                                Text("JPEG").tag(ImageFormat.jpeg)
+                                Text("PNG").tag(ImageFormat.png)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 140)
                         }
-                        Spacer()
-                        Toggle("", isOn: $settings.preserveExif)
-                            .labelsHidden()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    
-                    Divider()
-                        .padding(.leading, 16)
-                    
-                    // 视频格式设置
-                    HStack {
-                        Text("Target Video Format")
-                            .font(.system(size: 15))
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Picker("", selection: $settings.targetVideoFormat) {
-                            Text("MP4").tag("mp4")
-                            Text("MOV").tag("mov")
-                            Text("M4V").tag("m4v")
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        
+                        Divider()
+                            .padding(.leading, 16)
+                        
+                        // Preserve EXIF 开关
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Preserve EXIF Data")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(.primary)
+                                Text("Keep photo metadata like camera settings and location")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Toggle("", isOn: $settings.preserveExif)
+                                .labelsHidden()
                         }
-                        .pickerStyle(.segmented)
-                        .frame(width: 180)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        
+                        Divider()
+                            .padding(.leading, 16)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
                     
-                    Divider()
-                        .padding(.leading, 16)
-                    
-                    // HEVC 开关
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("HEVC Encoding")
+                    // 视频格式设置（仅当选择视频时显示）
+                    if currentMediaType == .video || currentMediaType == nil {
+                        HStack {
+                            Text("Target Video Format")
                                 .font(.system(size: 15))
                                 .foregroundStyle(.primary)
+                            Spacer()
+                            Picker("", selection: $settings.targetVideoFormat) {
+                                Text("MP4").tag("mp4")
+                                Text("MOV").tag("mov")
+                                Text("M4V").tag("m4v")
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 180)
                         }
-                        Spacer()
-                        Toggle("", isOn: $settings.useHEVC)
-                            .labelsHidden()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        
+                        Divider()
+                            .padding(.leading, 16)
+                        
+                        // HEVC 开关
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("HEVC Encoding")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(isM4VSelected ? .secondary : .primary)
+                                if isM4VSelected {
+                                    Text("M4V format only supports H.264")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                            Spacer()
+                            Toggle("", isOn: $settings.useHEVC)
+                                .labelsHidden()
+                                .disabled(isM4VSelected)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .opacity(isM4VSelected ? 0.5 : (AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality) ? 1 : 0.5))
+                        .disabled(isM4VSelected || !AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality))
+                        
+                        Rectangle()
+                            .fill(Color(uiColor: .separator).opacity(0.5))
+                            .frame(height: 0.5)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .opacity(AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality) ? 1 : 0.5)
-                    .disabled(!AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality))
-                    
-                    Rectangle()
-                        .fill(Color(uiColor: .separator).opacity(0.5))
-                        .frame(height: 0.5)
                 }
                 .background(Color(uiColor: .systemBackground))
                 
@@ -213,14 +239,20 @@ struct FormatView: View {
                 }
             }
         }
-        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 20, matching: .any(of: [.images, .videos]))
-        .fileImporter(isPresented: $showingFilePicker, allowedContentTypes: [.image, .movie, .video], allowsMultipleSelection: true) { result in
-            switch result {
-            case .success(let urls):
+        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 1, matching: .any(of: [.images, .videos]))
+        .onChange(of: settings.targetVideoFormat) { _, newFormat in
+            // 当选择 M4V 时，自动关闭 HEVC
+            if newFormat.lowercased() == "m4v" && settings.useHEVC {
+                settings.useHEVC = false
+            }
+        }
+        .fileImporter(isPresented: $showingFilePicker, allowedContentTypes: [.image, .movie, .video], allowsMultipleSelection: false) { result in
+            do {
+                let urls = try result.get()
                 Task {
                     await loadFilesFromURLs(urls)
                 }
-            case .failure(let error):
+            } catch {
                 print("File selection failed: \(error.localizedDescription)")
             }
         }
