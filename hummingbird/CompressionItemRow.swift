@@ -236,16 +236,42 @@ struct CompressionItemRow: View {
             
             // 保存按钮
             if item.status == .completed {
-                Button(action: { saveToPhotos(item) }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "photo.badge.arrow.down")
-                            .font(.subheadline)
-                        Text("Save to Photos")
-                            .font(.subheadline)
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Button(action: { saveToPhotos(item) }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "photo.badge.arrow.down")
+                                    .font(.caption)
+                                Text("Photos")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        
+                        Button(action: { saveToICloud(item) }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "icloud.and.arrow.up")
+                                    .font(.caption)
+                                Text("iCloud")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        
+                        Button(action: { shareFile(item) }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.caption)
+                                Text("Share")
+                                    .font(.caption)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
             }
         }
         .padding(.vertical, 8)
@@ -382,5 +408,159 @@ struct CompressionItemRow: View {
                 print("保存失败: \(error.localizedDescription)")
             }
         }
+    }
+    
+    private func saveToICloud(_ item: MediaItem) {
+        print("🔵 [iCloud] 使用文档选择器保存")
+        
+        // 准备临时文件
+        var fileURL: URL?
+        
+        if item.isVideo, let url = item.compressedVideoURL {
+            fileURL = url
+        } else if let data = item.compressedData {
+            let fileExtension: String
+            switch item.outputImageFormat {
+            case .heic:
+                fileExtension = "heic"
+            case .png:
+                fileExtension = "png"
+            case .webp:
+                fileExtension = "webp"
+            default:
+                fileExtension = "jpg"
+            }
+            
+            let fileName = "hummingbird_\(Date().timeIntervalSince1970).\(fileExtension)"
+            let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName)
+            
+            do {
+                try data.write(to: tempURL)
+                fileURL = tempURL
+            } catch {
+                print("❌ [iCloud] 创建临时文件失败")
+                return
+            }
+        }
+        
+        guard let sourceURL = fileURL,
+              let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              let rootViewController = window.rootViewController else {
+            return
+        }
+        
+        // 创建文档选择器 - 导出模式
+        let documentPicker = UIDocumentPickerViewController(forExporting: [sourceURL], asCopy: true)
+        
+        // 创建 coordinator 来处理回调
+        let coordinator = DocumentPickerCoordinator { success in
+            Task { @MainActor in
+                if success {
+                    withAnimation {
+                        self.showingToast = true
+                    }
+                    print("✅ [iCloud] 文件保存成功")
+                } else {
+                    print("⚠️ [iCloud] 用户取消保存")
+                }
+            }
+        }
+        documentPicker.delegate = coordinator
+        
+        // 保持 coordinator 的引用
+        objc_setAssociatedObject(documentPicker, "coordinator", coordinator, .OBJC_ASSOCIATION_RETAIN)
+        
+        // iPad 需要设置 popover
+        if let popover = documentPicker.popoverPresentationController {
+            popover.sourceView = rootViewController.view
+            popover.sourceRect = CGRect(x: rootViewController.view.bounds.midX, y: rootViewController.view.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        
+        print("📤 [iCloud] 显示文档选择器")
+        rootViewController.present(documentPicker, animated: true)
+    }
+    
+    // Document Picker Coordinator
+    private class DocumentPickerCoordinator: NSObject, UIDocumentPickerDelegate {
+        let onComplete: (Bool) -> Void
+        
+        init(onComplete: @escaping (Bool) -> Void) {
+            self.onComplete = onComplete
+        }
+        
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            onComplete(true)
+        }
+        
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onComplete(false)
+        }
+    }
+    
+    private func shareFile(_ item: MediaItem) {
+        print("📤 [Share] 打开分享界面")
+        
+        var itemsToShare: [Any] = []
+        
+        if item.isVideo, let url = item.compressedVideoURL {
+            itemsToShare.append(url)
+        } else if let data = item.compressedData {
+            let fileExtension: String
+            switch item.outputImageFormat {
+            case .heic:
+                fileExtension = "heic"
+            case .png:
+                fileExtension = "png"
+            case .webp:
+                fileExtension = "webp"
+            default:
+                fileExtension = "jpg"
+            }
+            
+            let fileName = "hummingbird_\(Date().timeIntervalSince1970).\(fileExtension)"
+            let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName)
+            
+            do {
+                try data.write(to: tempURL)
+                itemsToShare.append(tempURL)
+            } catch {
+                return
+            }
+        }
+        
+        guard !itemsToShare.isEmpty,
+              let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              let rootViewController = window.rootViewController else {
+            return
+        }
+        
+        let activityVC = UIActivityViewController(activityItems: itemsToShare, applicationActivities: nil)
+        
+        // 设置完成回调
+        activityVC.completionWithItemsHandler = { activityType, completed, returnedItems, error in
+            Task { @MainActor in
+                if completed {
+                    withAnimation {
+                        self.showingToast = true
+                    }
+                    print("✅ [Share] 分享成功")
+                } else if let error = error {
+                    print("❌ [Share] 分享失败: \(error)")
+                } else {
+                    print("⚠️ [Share] 用户取消分享")
+                }
+            }
+        }
+        
+        if let popover = activityVC.popoverPresentationController {
+            popover.sourceView = rootViewController.view
+            popover.sourceRect = CGRect(x: rootViewController.view.bounds.midX, y: rootViewController.view.bounds.midY, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        
+        rootViewController.present(activityVC, animated: true)
     }
 }

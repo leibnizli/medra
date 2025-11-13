@@ -278,7 +278,7 @@ struct CompressionSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     } header: {
-                        Text("Codec & Quality")
+                        Text("Codec & Quality (FFmpeg)")
                     } footer: {
                         Text("H.265 provides higher compression ratio but requires more processing time. CRF mode (recommended) provides stable quality. Slower encoding speed results in better compression.")
                     }
