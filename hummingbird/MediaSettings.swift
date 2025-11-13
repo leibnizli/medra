@@ -167,6 +167,12 @@ class CompressionSettings: ObservableObject {
     @Published var preferHEIC: Bool = false {
         didSet { UserDefaults.standard.set(preferHEIC, forKey: "preferHEIC") }
     }
+    @Published var targetImageResolution: ImageResolutionTarget = .original {
+        didSet { UserDefaults.standard.set(targetImageResolution.rawValue, forKey: "targetImageResolution") }
+    }
+    @Published var targetImageOrientationMode: OrientationMode = .auto {
+        didSet { UserDefaults.standard.set(targetImageOrientationMode.rawValue, forKey: "targetImageOrientationMode") }
+    }
     
     // Video settings - FFmpeg parameters
     @Published var videoCodec: VideoCodec = .h265 {
@@ -210,6 +216,14 @@ class CompressionSettings: ObservableObject {
         }
         if UserDefaults.standard.object(forKey: "preferHEIC") != nil {
             self.preferHEIC = UserDefaults.standard.bool(forKey: "preferHEIC")
+        }
+        if let resolutionRaw = UserDefaults.standard.string(forKey: "targetImageResolution"),
+           let resolution = ImageResolutionTarget(rawValue: resolutionRaw) {
+            self.targetImageResolution = resolution
+        }
+        if let orientationRaw = UserDefaults.standard.string(forKey: "targetImageOrientationMode"),
+           let orientation = OrientationMode(rawValue: orientationRaw) {
+            self.targetImageOrientationMode = orientation
         }
         
         if let codecRaw = UserDefaults.standard.string(forKey: "videoCodec"),
@@ -365,8 +379,8 @@ class CompressionSettings: ObservableObject {
     }
 }
 
-// MARK: - Video Orientation Mode
-enum VideoOrientationMode: String, CaseIterable, Identifiable {
+// MARK: - Orientation Mode (shared by both Image and Video)
+enum OrientationMode: String, CaseIterable, Identifiable {
     case auto = "Auto"
     case landscape = "Landscape"
     case portrait = "Portrait"
@@ -382,6 +396,68 @@ enum VideoOrientationMode: String, CaseIterable, Identifiable {
     }
 }
 
+// Alias for backward compatibility
+typealias VideoOrientationMode = OrientationMode
+
+// MARK: - Image Resolution
+enum ImageResolutionTarget: String, CaseIterable, Identifiable {
+    case original = "Original"
+    case uhd4k = "4K"
+    case uhd2k = "2K"
+    case fullHD = "1080p"
+    case hd = "720p"
+    
+    var id: String { rawValue }
+    
+    // Get size based on orientation
+    func size(for orientation: OrientationMode, originalSize: CGSize?) -> CGSize? {
+        // If original, return nil (no scaling)
+        if self == .original {
+            return nil
+        }
+        
+        // Determine target orientation
+        let targetOrientation: OrientationMode
+        if orientation == .auto {
+            // Auto: detect from original image
+            if let original = originalSize {
+                targetOrientation = original.width >= original.height ? .landscape : .portrait
+            } else {
+                targetOrientation = .landscape // Default to landscape if unknown
+            }
+        } else {
+            targetOrientation = orientation
+        }
+        
+        // Get base size (landscape)
+        let baseSize: CGSize
+        switch self {
+        case .original: return nil
+        case .uhd4k: baseSize = CGSize(width: 3840, height: 2160)
+        case .uhd2k: baseSize = CGSize(width: 2560, height: 1440)
+        case .fullHD: baseSize = CGSize(width: 1920, height: 1080)
+        case .hd: baseSize = CGSize(width: 1280, height: 720)
+        }
+        
+        // Swap dimensions for portrait
+        if targetOrientation == .portrait {
+            return CGSize(width: baseSize.height, height: baseSize.width)
+        } else {
+            return baseSize
+        }
+    }
+    
+    var displayName: String {
+        switch self {
+        case .original: return "Original"
+        case .uhd4k: return "4K (3840×2160)"
+        case .uhd2k: return "2K (2560×1440)"
+        case .fullHD: return "1080p (1920×1080)"
+        case .hd: return "720p (1280×720)"
+        }
+    }
+}
+
 // MARK: - Video Resolution
 enum VideoResolution: String, CaseIterable, Identifiable {
     case original = "Original"
@@ -393,7 +469,7 @@ enum VideoResolution: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     
     // Get size based on orientation
-    func size(for orientation: VideoOrientationMode, originalSize: CGSize?) -> CGSize? {
+    func size(for orientation: OrientationMode, originalSize: CGSize?) -> CGSize? {
         // If original, return nil (no scaling)
         if self == .original {
             return nil

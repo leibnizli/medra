@@ -32,7 +32,40 @@ final class MediaCompressor {
         
         // 修正图片方向，防止压缩后旋转
         image = image.fixOrientation()
-        print("原始图片尺寸 - width:\(image.size.width), height:\(image.size.height)")
+        let originalSize = image.size
+        print("📐 [Image] Original size: \(Int(originalSize.width))×\(Int(originalSize.height))")
+        
+        // Resolution scaling - only scale down if target is smaller than original
+        if let targetSize = settings.targetImageResolution.size(for: settings.targetImageOrientationMode, originalSize: originalSize) {
+            let originalWidth = originalSize.width
+            let originalHeight = originalSize.height
+            let targetWidth = targetSize.width
+            let targetHeight = targetSize.height
+            
+            let originalOrientation = originalWidth >= originalHeight ? "Landscape" : "Portrait"
+            let targetOrientation = targetWidth >= targetHeight ? "Landscape" : "Portrait"
+            
+            print("📐 [Image] Original: \(Int(originalWidth))×\(Int(originalHeight)) (\(originalOrientation))")
+            print("📐 [Image] Target: \(Int(targetWidth))×\(Int(targetHeight)) (\(targetOrientation))")
+            print("📐 [Image] Orientation Mode: \(settings.targetImageOrientationMode.rawValue)")
+            
+            // Only scale if original is larger than target
+            if originalWidth > targetWidth || originalHeight > targetHeight {
+                // Calculate aspect ratio preserving scale
+                let scaleWidth = targetWidth / originalWidth
+                let scaleHeight = targetHeight / originalHeight
+                let scale = min(scaleWidth, scaleHeight)
+                
+                let newSize = CGSize(width: originalWidth * scale, height: originalHeight * scale)
+                
+                print("📐 [Image] Scaling from \(Int(originalWidth))×\(Int(originalHeight)) to \(Int(newSize.width))×\(Int(newSize.height))")
+                
+                // Resize image
+                image = resizeImage(image, targetSize: newSize)
+            } else {
+                print("📐 [Image] Keeping original resolution (target: \(Int(targetWidth))×\(Int(targetHeight)))")
+            }
+        }
 
         progressHandler?(0.15)
         
@@ -260,6 +293,18 @@ final class MediaCompressor {
         )
         
         return nil  // FFmpeg 不使用 AVAssetExportSession
+    }
+
+    // Resize image to target size
+    static func resizeImage(_ image: UIImage, targetSize: CGSize) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        format.opaque = false
+        
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+        return renderer.image { context in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
     }
 }
 

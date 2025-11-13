@@ -34,6 +34,45 @@ struct CompressionSettingsView: View {
                 if selectedCategory == .image {
                     // Image Settings
                     Section {
+                        // Target resolution
+                        Picker("Target Resolution", selection: $settings.targetImageResolution) {
+                            ForEach(ImageResolutionTarget.allCases) { resolution in
+                                Text(resolution.displayName).tag(resolution)
+                            }
+                        }
+                        
+                        // Target orientation mode
+                        if settings.targetImageResolution != .original {
+                            Picker("Target Orientation", selection: $settings.targetImageOrientationMode) {
+                                ForEach(OrientationMode.allCases) { mode in
+                                    Text(mode.displayName).tag(mode)
+                                }
+                            }
+                            
+                            // Explanation text
+                            VStack(alignment: .leading, spacing: 4) {
+                                if settings.targetImageOrientationMode == .auto {
+                                    Text("Auto: Target resolution will match the original image's orientation")
+                                } else if settings.targetImageOrientationMode == .landscape {
+                                    Text("Landscape: Target resolution will be in landscape format (e.g., 1920×1080)")
+                                } else {
+                                    Text("Portrait: Target resolution will be in portrait format (e.g., 1080×1920)")
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    } header: {
+                        Text("Resolution Settings")
+                    } footer: {
+                        if settings.targetImageResolution != .original {
+                            Text("Image will be scaled down proportionally if original resolution is larger than target")
+                        } else {
+                            Text("Original resolution will be maintained")
+                        }
+                    }
+                    
+                    Section {
                         Toggle("Prefer HEIC", isOn: $settings.preferHEIC)
                         
                         if settings.preferHEIC {
