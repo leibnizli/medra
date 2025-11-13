@@ -7,9 +7,11 @@
 
 import SwiftUI
 import Photos
+import AVFoundation
 
 struct FormatItemRow: View {
     @ObservedObject var item: MediaItem
+    @StateObject private var audioPlayer = AudioPlayerManager.shared
     @State private var showingToast = false
     @State private var toastMessage = ""
     
@@ -18,16 +20,55 @@ struct FormatItemRow: View {
             HStack(spacing: 12) {
                 // Thumbnail
                 ZStack {
-                    Color.gray.opacity(0.2)
-                    
-                    if let thumbnail = item.thumbnailImage {
-                        Image(uiImage: thumbnail)
-                            .resizable()
-                            .scaledToFit()
+                    // 音频文件使用渐变背景
+                    if item.isAudio {
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.purple.opacity(0.7),
+                                Color.pink.opacity(0.5)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        
+                        // 音符图标
+                        Image(systemName: "music.note")
+                            .font(.system(size: 36, weight: .medium))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                        
+                        // 播放/暂停按钮
+                        // 优先使用转换后的音频，如果没有则使用原始音频
+                        if let audioURL = item.compressedVideoURL ?? item.sourceVideoURL {
+                            Button(action: {
+                                audioPlayer.togglePlayPause(itemId: item.id, audioURL: audioURL)
+                            }) {
+                                ZStack {
+                                    Circle()
+                                        .fill(.white.opacity(0.75))
+                                        .frame(width: 44, height: 44)
+                                    
+                                    Image(systemName: audioPlayer.isPlaying(itemId: item.id) ? "pause.fill" : "play.fill")
+                                        .font(.system(size: 20, weight: .semibold))
+                                        .foregroundStyle(.purple)
+                                        .offset(x: audioPlayer.isPlaying(itemId: item.id) ? 0 : 2)
+                                }
+                                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     } else {
-                        Image(systemName: item.isVideo ? "video.fill" : "photo.fill")
-                            .font(.title)
-                            .foregroundStyle(.secondary)
+                        Color.gray.opacity(0.2)
+                        
+                        if let thumbnail = item.thumbnailImage {
+                            Image(uiImage: thumbnail)
+                                .resizable()
+                                .scaledToFit()
+                        } else {
+                            Image(systemName: item.isVideo ? "video.fill" : "photo.fill")
+                                .font(.title)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .frame(width: 80, height: 80)
@@ -37,9 +78,9 @@ struct FormatItemRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     // File type and format
                     HStack(spacing: 6) {
-                        Image(systemName: item.isVideo ? "video.fill" : "photo.fill")
+                        Image(systemName: item.isAudio ? "music.note" : (item.isVideo ? "video.fill" : "photo.fill"))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(item.isAudio ? .purple : .secondary)
                         
                         if item.status == .completed {
                             // Show format changes

@@ -7,9 +7,11 @@
 
 import SwiftUI
 import Photos
+import AVFoundation
 
 struct CompressionItemRow: View {
     @ObservedObject var item: MediaItem
+    @StateObject private var audioPlayer = AudioPlayerManager.shared
     @State private var showingToast = false
     
     var body: some View {
@@ -33,6 +35,27 @@ struct CompressionItemRow: View {
                             .font(.system(size: 36, weight: .medium))
                             .foregroundStyle(.white)
                             .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+                        
+                        // 播放/暂停按钮
+                        // 优先使用压缩后的音频，如果没有则使用原始音频
+                        if let audioURL = item.compressedVideoURL ?? item.sourceVideoURL {
+                            Button(action: {
+                                audioPlayer.togglePlayPause(itemId: item.id, audioURL: audioURL)
+                            }) {
+                                ZStack {
+                                    Circle()
+                                        .fill(.white.opacity(0.75))
+                                        .frame(width: 44, height: 44)
+                                    
+                                    Image(systemName: audioPlayer.isPlaying(itemId: item.id) ? "pause.fill" : "play.fill")
+                                        .font(.system(size: 20, weight: .semibold))
+                                        .foregroundStyle(.purple)
+                                        .offset(x: audioPlayer.isPlaying(itemId: item.id) ? 0 : 2)
+                                }
+                                .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     } else {
                         Color.gray.opacity(0.2)
                         
