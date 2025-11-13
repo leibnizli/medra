@@ -116,9 +116,10 @@ struct FormatView: View {
                             Picker("", selection: $settings.targetImageFormat) {
                                 Text("JPEG").tag(ImageFormat.jpeg)
                                 Text("PNG").tag(ImageFormat.png)
+                                Text("WebP").tag(ImageFormat.webp)
                             }
                             .pickerStyle(.segmented)
-                            .frame(width: 140)
+                            .frame(width: 200)
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
@@ -616,6 +617,10 @@ struct FormatView: View {
             item.status = .processing
             item.progress = 0
         }
+        
+        // 添加短暂延迟确保 UI 更新
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+        
         print("🟢 [convertItem] 状态设置为 processing")
         
         if item.isVideo {
@@ -666,6 +671,7 @@ struct FormatView: View {
         await MainActor.run {
             item.progress = 0.3
         }
+        try? await Task.sleep(nanoseconds: 50_000_000) // 0.05 秒
         
         // 转换为目标格式
         let convertedData: Data?
@@ -675,12 +681,23 @@ struct FormatView: View {
         switch outputFormat {
         case .jpeg:
             print("[convertImage] 转换为 JPEG")
+            
+            await MainActor.run {
+                item.progress = 0.4
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+            
             let destinationData = NSMutableData()
             guard let destination = CGImageDestinationCreateWithData(destinationData, UTType.jpeg.identifier as CFString, 1, nil) else {
                 print(" [convertImage] 无法创建 JPEG destination")
                 convertedData = nil
                 break
             }
+            
+            await MainActor.run {
+                item.progress = 0.5
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
             
             // 如果需要保留 EXIF 信息，从原始图片源复制元数据
             if settings.preserveExif {
@@ -728,6 +745,11 @@ struct FormatView: View {
                 }
             }
             
+            await MainActor.run {
+                item.progress = 0.7
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+            
             if CGImageDestinationFinalize(destination) {
                 convertedData = destinationData as Data
                 print("[convertImage] ✅ JPEG 转换成功，大小: \(destinationData.length) bytes")
@@ -738,12 +760,23 @@ struct FormatView: View {
             
         case .png:
             print("[convertImage] 转换为 PNG")
+            
+            await MainActor.run {
+                item.progress = 0.4
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+            
             let destinationData = NSMutableData()
             guard let destination = CGImageDestinationCreateWithData(destinationData, UTType.png.identifier as CFString, 1, nil) else {
                 print(" [convertImage] 无法创建 PNG destination")
                 convertedData = nil
                 break
             }
+            
+            await MainActor.run {
+                item.progress = 0.5
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
             
             // 如果需要保留 EXIF 信息，从原始图片源复制元数据
             if settings.preserveExif {
@@ -778,6 +811,11 @@ struct FormatView: View {
                 }
             }
             
+            await MainActor.run {
+                item.progress = 0.7
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+            
             if CGImageDestinationFinalize(destination) {
                 convertedData = destinationData as Data
                 print("[convertImage] ✅ PNG 转换成功，大小: \(destinationData.length) bytes")
@@ -788,6 +826,12 @@ struct FormatView: View {
             
         case .webp:
             print("[convertImage] 转换为 WebP")
+            
+            await MainActor.run {
+                item.progress = 0.4
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+            
             let webpCoder = SDImageWebPCoder.shared
             
             // WebP 格式对 EXIF 支持有限，但我们尝试保留
@@ -801,10 +845,22 @@ struct FormatView: View {
                 imageToEncode = image.fixOrientation()
             }
             
+            await MainActor.run {
+                item.progress = 0.5
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+            
+            // 使用 0.85 的压缩质量，在质量和体积之间取得平衡
             let options: [SDImageCoderOption: Any] = [
-                .encodeCompressionQuality: 1.0
+                .encodeCompressionQuality: 0.85
             ]
             convertedData = webpCoder.encodedData(with: imageToEncode, format: .webP, options: options)
+            
+            await MainActor.run {
+                item.progress = 0.7
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+            
             if let data = convertedData {
                 print("[convertImage] WebP 转换成功，大小: \(data.count) bytes")
             } else {
@@ -813,6 +869,12 @@ struct FormatView: View {
             
         case .heic:
             print("[convertImage] 转换为 HEIC")
+            
+            await MainActor.run {
+                item.progress = 0.4
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+            
             if #available(iOS 11.0, *) {
                 let destinationData = NSMutableData()
                 guard let destination = CGImageDestinationCreateWithData(destinationData, AVFileType.heic as CFString, 1, nil) else {
@@ -820,6 +882,11 @@ struct FormatView: View {
                     convertedData = nil
                     break
                 }
+                
+                await MainActor.run {
+                    item.progress = 0.5
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
                 
                 // 如果需要保留 EXIF 信息，从原始图片源复制元数据
                 if settings.preserveExif {
@@ -866,6 +933,11 @@ struct FormatView: View {
                     }
                 }
                 
+                await MainActor.run {
+                    item.progress = 0.7
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+                
                 if CGImageDestinationFinalize(destination) {
                     convertedData = destinationData as Data
                     print("[convertImage] ✅ HEIC 转换成功，大小: \(destinationData.length) bytes")
@@ -882,6 +954,7 @@ struct FormatView: View {
         await MainActor.run {
             item.progress = 0.8
         }
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
         
         guard let data = convertedData else {
             print(" [convertImage] 转换失败，convertedData 为 nil")
