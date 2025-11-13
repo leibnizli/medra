@@ -159,7 +159,7 @@ class FFmpegAudioCompressor {
         // Audio codec (libmp3lame for MP3)
         command += " -c:a libmp3lame"
         
-        // Bitrate
+        // Bitrate (use ABR mode for more predictable file size)
         command += " -b:a \(bitrate)k"
         
         // Sample rate
@@ -167,9 +167,6 @@ class FFmpegAudioCompressor {
         
         // Channels
         command += " -ac \(channels)"
-        
-        // Quality setting (VBR quality, 0-9, lower is better)
-        command += " -q:a 2"
         
         // Output file
         command += " \"\(outputPath)\""

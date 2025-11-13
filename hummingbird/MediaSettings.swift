@@ -154,8 +154,11 @@ enum FrameRateMode: String, CaseIterable, Identifiable {
 
 // MARK: - Audio Bitrate
 enum AudioBitrate: String, CaseIterable, Identifiable {
+    case kbps32 = "32 kbps"
+    case kbps64 = "64 kbps"
     case kbps96 = "96 kbps"
     case kbps128 = "128 kbps"
+    case kbps160 = "160 kbps"
     case kbps192 = "192 kbps"
     case kbps256 = "256 kbps"
     case kbps320 = "320 kbps"
@@ -164,17 +167,38 @@ enum AudioBitrate: String, CaseIterable, Identifiable {
     
     var bitrateValue: Int {
         switch self {
+        case .kbps32: return 32
+        case .kbps64: return 64
         case .kbps96: return 96
         case .kbps128: return 128
+        case .kbps160: return 160
         case .kbps192: return 192
         case .kbps256: return 256
         case .kbps320: return 320
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .kbps32: return "Very Low Quality"
+        case .kbps64: return "Voice/Podcast (Mono)"
+        case .kbps96: return "Low Quality Music"
+        case .kbps128: return "Standard MP3 Quality"
+        case .kbps160: return "Good Music Quality"
+        case .kbps192: return "Very Good Quality (Recommended)"
+        case .kbps256: return "High Quality Music"
+        case .kbps320: return "Maximum MP3 Quality"
         }
     }
 }
 
 // MARK: - Audio Sample Rate
 enum AudioSampleRate: String, CaseIterable, Identifiable {
+    case hz8000 = "8 kHz"
+    case hz11025 = "11.025 kHz"
+    case hz16000 = "16 kHz"
+    case hz22050 = "22.05 kHz"
+    case hz32000 = "32 kHz"
     case hz44100 = "44.1 kHz"
     case hz48000 = "48 kHz"
     
@@ -182,8 +206,25 @@ enum AudioSampleRate: String, CaseIterable, Identifiable {
     
     var sampleRateValue: Int {
         switch self {
+        case .hz8000: return 8000
+        case .hz11025: return 11025
+        case .hz16000: return 16000
+        case .hz22050: return 22050
+        case .hz32000: return 32000
         case .hz44100: return 44100
         case .hz48000: return 48000
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .hz8000: return "Telephone Quality"
+        case .hz11025: return "AM Radio Quality"
+        case .hz16000: return "Wideband Voice (VoIP)"
+        case .hz22050: return "FM Radio Quality"
+        case .hz32000: return "Digital Broadcast"
+        case .hz44100: return "CD Standard (Most Common)"
+        case .hz48000: return "Professional Audio/Video"
         }
     }
 }
@@ -226,7 +267,7 @@ class CompressionSettings: ObservableObject {
     }
     
     // Audio settings
-    @Published var audioBitrate: AudioBitrate = .kbps192 {
+    @Published var audioBitrate: AudioBitrate = .kbps128 {
         didSet { UserDefaults.standard.set(audioBitrate.rawValue, forKey: "audioBitrate") }
     }
     @Published var audioSampleRate: AudioSampleRate = .hz44100 {

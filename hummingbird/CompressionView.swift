@@ -798,37 +798,31 @@ struct CompressionView: View {
                                 item.compressedVideoURL = url  // 复用这个字段
                                 item.compressedSize = compressedSize
                                 
-                                // 获取压缩后的音频信息
-                                Task {
-                                    let asset = AVURLAsset(url: url)
-                                    do {
-                                        let tracks = try await asset.loadTracks(withMediaType: .audio)
-                                        if let audioTrack = tracks.first {
-                                            let formatDescriptions = audioTrack.formatDescriptions as! [CMFormatDescription]
-                                            if let formatDescription = formatDescriptions.first {
-                                                let audioStreamBasicDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription)
-                                                
-                                                if let asbd = audioStreamBasicDescription {
-                                                    let sampleRate = Int(asbd.pointee.mSampleRate)
-                                                    let channels = Int(asbd.pointee.mChannelsPerFrame)
-                                                    
-                                                    await MainActor.run {
-                                                        item.compressedAudioSampleRate = sampleRate
-                                                        item.compressedAudioChannels = channels
-                                                    }
-                                                }
-                                            }
+                                // 获取压缩后的音频信息（在设置完成状态之前）
+                                let asset = AVURLAsset(url: url)
+                                do {
+                                    let tracks = try await asset.loadTracks(withMediaType: .audio)
+                                    if let audioTrack = tracks.first {
+                                        let formatDescriptions = audioTrack.formatDescriptions as! [CMFormatDescription]
+                                        if let formatDescription = formatDescriptions.first {
+                                            let audioStreamBasicDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription)
                                             
-                                            if let estimatedBitrate = try? await audioTrack.load(.estimatedDataRate) {
-                                                let bitrateKbps = Int(estimatedBitrate / 1000)
-                                                await MainActor.run {
-                                                    item.compressedAudioBitrate = bitrateKbps
-                                                }
+                                            if let asbd = audioStreamBasicDescription {
+                                                let sampleRate = Int(asbd.pointee.mSampleRate)
+                                                let channels = Int(asbd.pointee.mChannelsPerFrame)
+                                                
+                                                item.compressedAudioSampleRate = sampleRate
+                                                item.compressedAudioChannels = channels
                                             }
                                         }
-                                    } catch {
-                                        print("Failed to load compressed audio info: \(error)")
+                                        
+                                        if let estimatedBitrate = try? await audioTrack.load(.estimatedDataRate) {
+                                            let bitrateKbps = Int(estimatedBitrate / 1000)
+                                            item.compressedAudioBitrate = bitrateKbps
+                                        }
                                     }
+                                } catch {
+                                    print("Failed to load compressed audio info: \(error)")
                                 }
                             }
                             
