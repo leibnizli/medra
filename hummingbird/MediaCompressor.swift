@@ -26,9 +26,20 @@ final class MediaCompressor {
         preferredFormat: ImageFormat? = nil,
         progressHandler: ((Float) -> Void)? = nil
     ) async throws -> Data {
-        guard var image = UIImage(data: data) else { throw MediaCompressionError.imageDecodeFailed }
-        
         progressHandler?(0.1)
+        
+        // 检测原始图片格式，保持原有格式
+        // 如果提供了 preferredFormat，优先使用它；否则从数据检测
+        let format: ImageFormat
+        if let preferredFormat = preferredFormat {
+            format = preferredFormat
+            print("📋 [格式检测] 使用预设格式: \(preferredFormat.rawValue)")
+        } else {
+            format = detectImageFormat(data: data)
+        }
+        
+        // 常规图片处理（包括 WebP）
+        guard var image = UIImage(data: data) else { throw MediaCompressionError.imageDecodeFailed }
         
         // 修正图片方向，防止压缩后旋转
         image = image.fixOrientation()
@@ -68,17 +79,6 @@ final class MediaCompressor {
         }
 
         progressHandler?(0.15)
-        
-        // 检测原始图片格式，保持原有格式
-        // 如果提供了 preferredFormat，优先使用它；否则从数据检测
-        let format: ImageFormat
-        if let preferredFormat = preferredFormat {
-            format = preferredFormat
-            print("📋 [格式检测] 使用预设格式: \(preferredFormat == .heic ? "HEIC" : "JPEG")")
-        } else {
-            format = detectImageFormat(data: data)
-        }
-        
         progressHandler?(0.2)
         
         // 根据格式选择对应的质量设置
@@ -152,16 +152,16 @@ final class MediaCompressor {
         switch format {
         case .webp:
             progressHandler?(0.3)
-            // WebP 压缩 - 使用 SDWebImageWebPCoder
-            print("🔄 [WebP] 开始 WebP 压缩 - 质量: \(quality)")
+            // WebP 压缩 - 使用 SDWebImageWebPCoder（静态图片）
+            print("🔄 [WebP] 开始静态 WebP 压缩 - 质量: \(quality)")
             
             let webpCoder = SDImageWebPCoder.shared
             let normalizedQuality = max(0.01, min(1.0, quality))
             
-            // 使用 SDWebImageWebPCoder 编码
+            // 静态 WebP 编码
             if let webpData = webpCoder.encodedData(with: image, format: .webP, options: [.encodeCompressionQuality: normalizedQuality]) {
                 progressHandler?(1.0)
-                print("✅ [WebP] 压缩成功 - 质量: \(normalizedQuality), 大小: \(webpData.count) bytes")
+                print("✅ [WebP] 静态压缩成功 - 质量: \(normalizedQuality), 大小: \(webpData.count) bytes")
                 return webpData
             } else {
                 print("⚠️ [WebP] SDWebImageWebPCoder 编码失败，回退到 JPEG")
