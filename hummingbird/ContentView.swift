@@ -18,7 +18,7 @@ struct ContentView: View {
                 .tabItem {
                     Label("Resolution", systemImage: "arrow.up.left.and.arrow.down.right")
                 }
-            FormatView()
+            FormatMainView()
                 .tabItem {
                     Label("Format", systemImage: "arrow.triangle.2.circlepath")
                 }

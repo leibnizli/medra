@@ -239,18 +239,20 @@ struct FormatItemRow: View {
                 if item.status == .completed {
                     VStack(spacing: 8) {
                         HStack(spacing: 8) {
-                            Button(action: {
-                                Task { await saveToPhotos() }
-                            }) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "photo.badge.arrow.down")
-                                        .font(.caption)
-                                    Text("Photos")
-                                        .font(.caption)
+                            if !item.isAudio {
+                                Button(action: {
+                                    Task { await saveToPhotos() }
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "photo.badge.arrow.down")
+                                            .font(.caption)
+                                        Text("Photos")
+                                            .font(.caption)
+                                    }
+                                    .frame(maxWidth: .infinity)
                                 }
-                                .frame(maxWidth: .infinity)
+                                .buttonStyle(.bordered)
                             }
-                            .buttonStyle(.bordered)
                             
                             Button(action: {
                                 Task { await saveToICloud() }
