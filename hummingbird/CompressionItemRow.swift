@@ -99,8 +99,29 @@ struct CompressionItemRow: View {
                             
                             // 文件格式
                             if item.status == .completed {
-                                let originalFormat = item.originalImageFormat?.rawValue.uppercased() ?? (item.isVideo ? item.fileExtension.uppercased() : "")
-                                let outputFormat = item.outputImageFormat?.rawValue.uppercased() ?? item.outputVideoFormat?.uppercased() ?? ""
+                                // 根据文件类型获取原始格式
+                                let originalFormat: String = {
+                                    if item.isImage {
+                                        return item.originalImageFormat?.rawValue.uppercased() ?? item.fileExtension.uppercased()
+                                    } else if item.isVideo {
+                                        return item.fileExtension.uppercased()
+                                    } else if item.isAudio {
+                                        return item.fileExtension.uppercased()
+                                    }
+                                    return ""
+                                }()
+                                
+                                // 根据文件类型获取输出格式
+                                let outputFormat: String = {
+                                    if item.isImage {
+                                        return item.outputImageFormat?.rawValue.uppercased() ?? ""
+                                    } else if item.isVideo {
+                                        return item.outputVideoFormat?.uppercased() ?? ""
+                                    } else if item.isAudio {
+                                        return item.fileExtension.uppercased()
+                                    }
+                                    return ""
+                                }()
                                 
                                 if !originalFormat.isEmpty {
                                     if outputFormat.isEmpty || originalFormat == outputFormat {

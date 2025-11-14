@@ -102,8 +102,29 @@ struct FormatItemRow: View {
                             
                             if item.status == .completed {
                                 // Show format changes
-                                let originalFormatText = item.originalImageFormat?.rawValue.uppercased() ?? (item.isVideo ? item.fileExtension.uppercased() : "")
-                                let outputFormatText = item.outputImageFormat?.rawValue.uppercased() ?? item.outputVideoFormat?.uppercased() ?? ""
+                                // 根据文件类型获取原始格式
+                                let originalFormatText: String = {
+                                    if item.isImage {
+                                        return item.originalImageFormat?.rawValue.uppercased() ?? item.fileExtension.uppercased()
+                                    } else if item.isVideo {
+                                        return item.fileExtension.uppercased()
+                                    } else if item.isAudio {
+                                        return item.fileExtension.uppercased()
+                                    }
+                                    return ""
+                                }()
+                                
+                                // 根据文件类型获取输出格式
+                                let outputFormatText: String = {
+                                    if item.isImage {
+                                        return item.outputImageFormat?.rawValue.uppercased() ?? ""
+                                    } else if item.isVideo {
+                                        return item.outputVideoFormat?.uppercased() ?? ""
+                                    } else if item.isAudio {
+                                        return item.fileExtension.uppercased()
+                                    }
+                                    return ""
+                                }()
                                 
                                 if !originalFormatText.isEmpty {
                                     if outputFormatText.isEmpty || originalFormatText == outputFormatText {
@@ -126,12 +147,19 @@ struct FormatItemRow: View {
                                 }
                             } else {
                                 // When not completed, only show original format
-                                if let originalFormat = item.originalImageFormat {
-                                    Text(originalFormat.rawValue.uppercased())
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                } else if item.isVideo {
-                                    Text(item.fileExtension.uppercased())
+                                let originalFormatText: String = {
+                                    if item.isImage {
+                                        return item.originalImageFormat?.rawValue.uppercased() ?? item.fileExtension.uppercased()
+                                    } else if item.isVideo {
+                                        return item.fileExtension.uppercased()
+                                    } else if item.isAudio {
+                                        return item.fileExtension.uppercased()
+                                    }
+                                    return ""
+                                }()
+                                
+                                if !originalFormatText.isEmpty {
+                                    Text(originalFormatText)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }

@@ -71,6 +71,12 @@ class MediaItem: Identifiable, ObservableObject {
         return audioExtensions.contains(fileExtension.lowercased())
     }
     
+    // Is this an image file?
+    var isImage: Bool {
+        let imageExtensions = ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp", "tiff", "tif"]
+        return imageExtensions.contains(fileExtension.lowercased())
+    }
+    
     // Original image format (detected from PhotosPickerItem)
     var originalImageFormat: ImageFormat?
     
