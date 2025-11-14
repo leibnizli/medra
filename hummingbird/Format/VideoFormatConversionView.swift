@@ -163,7 +163,7 @@ struct VideoFormatConversionView: View {
         }
         .navigationTitle("Video Format")
         .navigationBarTitleDisplayMode(.inline)
-        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 1, matching: .videos)
+        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 20, matching: .videos)
         .fileImporter(isPresented: $showingFilePicker, allowedContentTypes: [.movie, .video], allowsMultipleSelection: true) { result in
             do {
                 let urls = try result.get()

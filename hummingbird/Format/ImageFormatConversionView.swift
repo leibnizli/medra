@@ -155,7 +155,7 @@ struct ImageFormatConversionView: View {
         }
         .navigationTitle("Image Format")
         .navigationBarTitleDisplayMode(.inline)
-        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 1, matching: .images)
+        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 20, matching: .images)
         .fileImporter(isPresented: $showingFilePicker, allowedContentTypes: [.image], allowsMultipleSelection: true) { result in
             do {
                 let urls = try result.get()
