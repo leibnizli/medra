@@ -151,6 +151,10 @@ struct CompressionViewAudio: View {
                 }
             }
         }
+        .onDisappear {
+            // 页面离开时停止音频播放
+            AudioPlayerManager.shared.stop()
+        }
     }
     //MARK: 选择文件 icloud
     private func loadFileURLs(_ urls: [URL]) async {

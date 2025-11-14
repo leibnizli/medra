@@ -142,6 +142,10 @@ struct AudioFormatConversionView: View {
                 print("File selection failed: \(error.localizedDescription)")
             }
         }
+        .onDisappear {
+            // 页面离开时停止音频播放
+            AudioPlayerManager.shared.stop()
+        }
     }
     
     private func startConversion() {
