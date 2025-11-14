@@ -181,6 +181,11 @@ class FFmpegAudioCompressor {
         
         // Audio codec and format-specific settings
         switch format {
+        case .original:
+            // This should not happen as we convert .original to actual format before calling this
+            // But if it does, use copy codec to preserve original
+            command += " -c:a copy"
+            
         case .mp3:
             // Try libmp3lame first, fallback to built-in mp3 encoder
             command += " -c:a libmp3lame"

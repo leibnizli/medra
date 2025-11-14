@@ -76,7 +76,7 @@ struct AudioFormatConversionView: View {
                         .foregroundStyle(.primary)
                     Spacer()
                     Picker("", selection: $settings.targetAudioFormat) {
-                        ForEach(AudioFormat.allCases) { format in
+                        ForEach(AudioFormat.allCases.filter { $0 != .original }) { format in
                             Text("\(format.rawValue) · \(format.description)")
                                 .tag(format)
                         }
@@ -288,6 +288,9 @@ struct AudioFormatConversionView: View {
         var command = "-i \"\(sourceURL.path)\""
         
         switch targetFormat {
+        case .original:
+            // 不应该出现在格式转换中，使用copy保持原格式
+            command += " -c:a copy"
         case .mp3:
             command += " -c:a libmp3lame -b:a 192k -q:a 2"
         case .aac:

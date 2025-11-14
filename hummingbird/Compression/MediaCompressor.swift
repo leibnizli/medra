@@ -20,6 +20,7 @@ enum ImageFormat: String, CaseIterable, Identifiable {
 }
 
 enum AudioFormat: String, CaseIterable, Identifiable {
+    case original = "Original"
     case mp3 = "MP3"
     case aac = "AAC"
     case m4a = "M4A"
@@ -31,6 +32,7 @@ enum AudioFormat: String, CaseIterable, Identifiable {
     
     var fileExtension: String {
         switch self {
+        case .original: return "" // Will use source format
         case .mp3: return "mp3"
         case .aac: return "aac"
         case .m4a: return "m4a"
@@ -42,6 +44,7 @@ enum AudioFormat: String, CaseIterable, Identifiable {
     
     var description: String {
         switch self {
+        case .original: return "Keep original format"
         case .mp3: return "Most compatible"
         case .aac: return "Good quality"
         case .m4a: return "Apple devices"
@@ -54,6 +57,8 @@ enum AudioFormat: String, CaseIterable, Identifiable {
     // Check if this format requires external encoder
     var requiresExternalEncoder: Bool {
         switch self {
+        case .original:
+            return false  // Will be determined by source format
         case .mp3, .opus:
             return true  // Requires libmp3lame, libopus
         case .aac, .m4a, .flac, .wav:
@@ -64,6 +69,7 @@ enum AudioFormat: String, CaseIterable, Identifiable {
     // Get encoder name for error messages
     var encoderName: String {
         switch self {
+        case .original: return "original"
         case .mp3: return "libmp3lame"
         case .aac, .m4a: return "aac"
         case .opus: return "libopus"

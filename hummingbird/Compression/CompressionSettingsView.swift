@@ -43,7 +43,7 @@ struct CompressionSettingsView: View {
                     } header: {
                         Text("Format Settings")
                     } footer: {
-                        Text("Choose the output audio format. MP3 and AAC are widely compatible. OPUS offers better quality at lower bitrates. FLAC is lossless. WAV is uncompressed.")
+                        Text("Choose the output audio format. Original keeps the same format as input file. MP3 and AAC are widely compatible. OPUS offers better quality at lower bitrates. FLAC is lossless. WAV is uncompressed.")
                     }
                     
                     Section {
@@ -52,7 +52,7 @@ struct CompressionSettingsView: View {
                                 Text(bitrate.rawValue).tag(bitrate)
                             }
                         }
-                        .disabled(settings.audioFormat == .flac || settings.audioFormat == .wav)
+                        .disabled(settings.audioFormat == .original || settings.audioFormat == .flac || settings.audioFormat == .wav)
                         
                         Picker("Sample Rate", selection: $settings.audioSampleRate) {
                             ForEach(AudioSampleRate.allCases) { sampleRate in
@@ -68,7 +68,9 @@ struct CompressionSettingsView: View {
                     } header: {
                         Text("Audio Quality Settings")
                     } footer: {
-                        if settings.audioFormat == .flac {
+                        if settings.audioFormat == .original {
+                            Text("Original format keeps the same format as input file. Quality settings will still apply to reduce file size while maintaining the original format.")
+                        } else if settings.audioFormat == .flac {
                             Text("FLAC is lossless compression, bitrate setting is not applicable. Original quality will be preserved.")
                         } else if settings.audioFormat == .wav {
                             Text("WAV is uncompressed PCM audio, bitrate setting is not applicable.")

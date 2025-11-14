@@ -267,7 +267,7 @@ class CompressionSettings: ObservableObject {
     }
     
     // Audio settings
-    @Published var audioFormat: AudioFormat = .mp3 {
+    @Published var audioFormat: AudioFormat = .original {
         didSet { UserDefaults.standard.set(audioFormat.rawValue, forKey: "audioFormat") }
     }
     @Published var audioBitrate: AudioBitrate = .kbps128 {
@@ -704,7 +704,8 @@ class FormatSettings: ObservableObject {
             self.targetVideoFormat = videoFormat
         }
         if let audioFormatRaw = UserDefaults.standard.string(forKey: "targetAudioFormat"),
-           let audioFormat = AudioFormat(rawValue: audioFormatRaw) {
+           let audioFormat = AudioFormat(rawValue: audioFormatRaw),
+           audioFormat != .original {  // 格式转换不支持"原始"选项
             self.targetAudioFormat = audioFormat
         }
         if UserDefaults.standard.object(forKey: "useHEVC") != nil {

@@ -806,12 +806,30 @@ struct CompressionView: View {
             return
         }
         
+        // 确定输出格式：如果选择"原始"，使用源文件格式
+        let outputFormat: AudioFormat
+        if settings.audioFormat == .original {
+            // 根据文件扩展名确定格式
+            let ext = item.fileExtension.lowercased()
+            switch ext {
+            case "mp3": outputFormat = .mp3
+            case "aac": outputFormat = .aac
+            case "m4a": outputFormat = .m4a
+            case "opus": outputFormat = .opus
+            case "flac": outputFormat = .flac
+            case "wav": outputFormat = .wav
+            default: outputFormat = .mp3  // 默认使用 MP3
+            }
+        } else {
+            outputFormat = settings.audioFormat
+        }
+        
         // 使用 continuation 等待压缩完成
         await withCheckedContinuation { continuation in
             MediaCompressor.compressAudio(
                 at: sourceURL,
                 settings: settings,
-                outputFormat: settings.audioFormat,
+                outputFormat: outputFormat,
                 originalBitrate: item.audioBitrate,
                 originalSampleRate: item.audioSampleRate,
                 originalChannels: item.audioChannels,
@@ -833,7 +851,8 @@ struct CompressionView: View {
                             }
                             
                             // 检查是否是格式转换（而非压缩）
-                            let isFormatConversion = self.settings.audioFormat.fileExtension != item.fileExtension.lowercased()
+                            // 如果选择了"原始"格式，则不是格式转换
+                            let isFormatConversion = self.settings.audioFormat != .original && outputFormat.fileExtension != item.fileExtension.lowercased()
                             
                             // 如果是格式转换，即使文件变大也使用转换后的文件
                             // 如果是压缩（相同格式），且文件变大，则保留原始文件
@@ -859,7 +878,7 @@ struct CompressionView: View {
                                 
                                 item.compressedVideoURL = url  // 复用这个字段
                                 item.compressedSize = compressedSize
-                                item.outputAudioFormat = self.settings.audioFormat
+                                item.outputAudioFormat = outputFormat
                                 
                                 // 获取压缩后的音频信息（在设置完成状态之前）
                                 let asset = AVURLAsset(url: url)
