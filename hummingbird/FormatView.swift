@@ -29,7 +29,19 @@ struct FormatView: View {
     // 当前选择的媒体类型
     private var currentMediaType: MediaType? {
         guard let firstItem = mediaItems.first else { return nil }
-        return firstItem.isVideo ? .video : .image
+        print("🔍 [currentMediaType] fileExtension: \(firstItem.fileExtension)")
+        print("🔍 [currentMediaType] isAudio: \(firstItem.isAudio)")
+        print("🔍 [currentMediaType] isVideo: \(firstItem.isVideo)")
+        if firstItem.isAudio {
+            print("🔍 [currentMediaType] 返回 .audio")
+            return .audio
+        } else if firstItem.isVideo {
+            print("🔍 [currentMediaType] 返回 .video")
+            return .video
+        } else {
+            print("🔍 [currentMediaType] 返回 .image")
+            return .image
+        }
     }
     
     // M4V 格式是否被选中
@@ -40,6 +52,7 @@ struct FormatView: View {
     enum MediaType {
         case image
         case video
+        case audio
     }
     
     var body: some View {
@@ -104,10 +117,38 @@ struct FormatView: View {
                         .frame(height: 0.5)
                 }
                 
-                // 设置区域
-                VStack(spacing: 0) {
+                // 设置区域（只在有文件时显示）
+                if !mediaItems.isEmpty {
+                    VStack(spacing: 0) {
+                        // 调试信息
+                        let _ = print("🎨 [UI] currentMediaType: \(String(describing: currentMediaType))")
+                        
+                        // 音频格式设置（仅当选择音频时显示）
+                        if currentMediaType == .audio {
+                        let _ = print("🎨 [UI] 显示音频格式设置")
+                        HStack {
+                            Text("Target Audio Format")
+                                .font(.system(size: 15))
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Picker("", selection: $settings.targetAudioFormat) {
+                                ForEach(AudioFormat.allCases) { format in
+                                    Text(format.rawValue).tag(format)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 120)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        
+                        Rectangle()
+                            .fill(Color(uiColor: .separator).opacity(0.5))
+                            .frame(height: 0.5)
+                    }
+                    
                     // 图片格式设置（仅当选择图片时显示）
-                    if currentMediaType == .image || currentMediaType == nil {
+                    if currentMediaType == .image {
                         HStack {
                             Text("Target Image Format")
                                 .font(.system(size: 15))
@@ -149,7 +190,7 @@ struct FormatView: View {
                     }
                     
                     // 视频格式设置（仅当选择视频时显示）
-                    if currentMediaType == .video || currentMediaType == nil {
+                    if currentMediaType == .video  {
                         HStack {
                             Text("Target Video Format")
                                 .font(.system(size: 15))
@@ -195,8 +236,9 @@ struct FormatView: View {
                             .fill(Color(uiColor: .separator).opacity(0.5))
                             .frame(height: 0.5)
                     }
+                    }
+                    .background(Color(uiColor: .systemBackground))
                 }
-                .background(Color(uiColor: .systemBackground))
                 
                 // 文件列表
                 if mediaItems.isEmpty {
@@ -256,7 +298,7 @@ struct FormatView: View {
                 settings.useHEVC = false
             }
         }
-        .fileImporter(isPresented: $showingFilePicker, allowedContentTypes: [.image, .movie, .video], allowsMultipleSelection: false) { result in
+        .fileImporter(isPresented: $showingFilePicker, allowedContentTypes: [.image, .movie, .video, .audio], allowsMultipleSelection: false) { result in
             do {
                 let urls = try result.get()
                 Task {
@@ -269,6 +311,8 @@ struct FormatView: View {
     }
     
     private func loadFilesFromURLs(_ urls: [URL]) async {
+        print("📂 [loadFilesFromURLs] 开始加载文件，数量: \(urls.count)")
+        
         // 停止当前播放
         await MainActor.run {
             AudioPlayerManager.shared.stop()
@@ -279,17 +323,37 @@ struct FormatView: View {
         }
         
         for url in urls {
+            print("📂 [loadFilesFromURLs] 处理文件: \(url.lastPathComponent)")
+            
             // 验证文件是否可访问
-            guard url.startAccessingSecurityScopedResource() else { continue }
+            guard url.startAccessingSecurityScopedResource() else {
+                print("❌ [loadFilesFromURLs] 无法访问文件: \(url.lastPathComponent)")
+                continue
+            }
             defer { url.stopAccessingSecurityScopedResource() }
             
             // 检查文件类型
-            let isVideo = UTType(filenameExtension: url.pathExtension)?.conforms(to: .movie) ?? false
+            let fileExtension = url.pathExtension.lowercased()
+            print("📂 [loadFilesFromURLs] 文件扩展名: \(fileExtension)")
+            
+            let audioExtensions = ["mp3", "m4a", "aac", "wav", "flac", "ogg", "opus"]
+            let isAudio = audioExtensions.contains(fileExtension)
+            let isVideo = !isAudio && (UTType(filenameExtension: url.pathExtension)?.conforms(to: .movie) ?? false)
+            
+            print("📂 [loadFilesFromURLs] isAudio: \(isAudio), isVideo: \(isVideo)")
+            
             let mediaItem = MediaItem(pickerItem: nil, isVideo: isVideo)
+            
+            // 先设置 fileExtension，这样 isAudio 属性才能正确工作
+            await MainActor.run {
+                mediaItem.fileExtension = fileExtension
+                print("📂 [loadFilesFromURLs] 设置 fileExtension: \(fileExtension)")
+            }
             
             // 添加到列表
             await MainActor.run {
                 mediaItems.append(mediaItem)
+                print("📂 [loadFilesFromURLs] 添加到列表，当前 isAudio: \(mediaItem.isAudio)")
             }
             
             do {
@@ -299,10 +363,16 @@ struct FormatView: View {
                 await MainActor.run {
                     mediaItem.originalData = data
                     mediaItem.originalSize = data.count
-                    mediaItem.fileExtension = url.pathExtension.lowercased()
                     
                     // 设置格式
-                    if isVideo {
+                    if isAudio {
+                        // 音频文件
+                        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                            .appendingPathComponent("source_\(mediaItem.id.uuidString)")
+                            .appendingPathExtension(fileExtension)
+                        try? data.write(to: tempURL)
+                        mediaItem.sourceVideoURL = tempURL  // 复用这个字段
+                    } else if isVideo {
                         // 视频文件
                         let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
                             .appendingPathComponent("source_\(mediaItem.id.uuidString)")
@@ -322,15 +392,19 @@ struct FormatView: View {
                     }
                     
                     // 如果是图片，生成缩略图和获取分辨率
-                    if !isVideo, let image = UIImage(data: data) {
+                    if !isVideo && !isAudio, let image = UIImage(data: data) {
                         mediaItem.thumbnailImage = generateThumbnail(from: image)
                         mediaItem.originalResolution = image.size
                         mediaItem.status = .pending
                     }
                 }
                 
+                // 如果是音频，处理音频相关信息
+                if isAudio, let tempURL = mediaItem.sourceVideoURL {
+                    await loadAudioMetadata(for: mediaItem, url: tempURL)
+                }
                 // 如果是视频，处理视频相关信息
-                if isVideo, let tempURL = mediaItem.sourceVideoURL {
+                else if isVideo, let tempURL = mediaItem.sourceVideoURL {
                     await loadVideoMetadata(for: mediaItem, url: tempURL)
                 }
             } catch {
@@ -354,7 +428,8 @@ struct FormatView: View {
         }
         
         for item in items {
-            let isVideo = item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) || $0.conforms(to: .video) })
+            let isAudio = item.supportedContentTypes.contains(where: { $0.conforms(to: .audio) })
+            let isVideo = !isAudio && item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) || $0.conforms(to: .video) })
             let mediaItem = MediaItem(pickerItem: item, isVideo: isVideo)
             
             // 先添加到列表，显示加载状态
@@ -362,7 +437,10 @@ struct FormatView: View {
                 mediaItems.append(mediaItem)
             }
             
-            if isVideo {
+            if isAudio {
+                // 音频：加载音频文件
+                await loadAudioItemOptimized(item, mediaItem)
+            } else if isVideo {
                 // 视频优化：延迟加载
                 await loadVideoItemOptimized(item, mediaItem)
             } else {
@@ -630,7 +708,7 @@ struct FormatView: View {
     }
     
     private func convertItem(_ item: MediaItem) async {
-        print("🟢 [convertItem] 开始转换项目，isVideo: \(item.isVideo)")
+        print("🟢 [convertItem] 开始转换项目，isAudio: \(item.isAudio), isVideo: \(item.isVideo)")
         
         await MainActor.run {
             item.status = .processing
@@ -642,7 +720,10 @@ struct FormatView: View {
         
         print("🟢 [convertItem] 状态设置为 processing")
         
-        if item.isVideo {
+        if item.isAudio {
+            print("🟢 [convertItem] 这是音频，调用 convertAudio")
+            await convertAudio(item)
+        } else if item.isVideo {
             print("🟢 [convertItem] 这是视频，调用 convertVideo")
             await convertVideo(item)
         } else {
@@ -1221,6 +1302,261 @@ struct FormatView: View {
         }
         
         return hours * 3600 + minutes * 60 + seconds
+    }
+    
+    // 加载音频项（优化版本）
+    private func loadAudioItemOptimized(_ item: PhotosPickerItem, _ mediaItem: MediaItem) async {
+        // 检测音频格式
+        await MainActor.run {
+            if let ext = item.supportedContentTypes.first?.preferredFilenameExtension?.lowercased() {
+                mediaItem.fileExtension = ext
+            } else {
+                mediaItem.fileExtension = "audio"
+            }
+        }
+        
+        // 尝试使用 URL 方式加载
+        if let url = try? await item.loadTransferable(type: URL.self) {
+            await MainActor.run {
+                mediaItem.sourceVideoURL = url  // 复用这个字段
+                
+                // 快速获取文件大小
+                if let fileSize = try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int {
+                    mediaItem.originalSize = fileSize
+                }
+                
+                mediaItem.status = .pending
+                
+                // 在后台异步获取音频信息
+                Task {
+                    await loadAudioMetadata(for: mediaItem, url: url)
+                }
+            }
+        } else if let data = try? await item.loadTransferable(type: Data.self) {
+            await MainActor.run {
+                mediaItem.originalData = data
+                mediaItem.originalSize = data.count
+                
+                let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
+                    .appendingPathComponent("source_\(mediaItem.id.uuidString)")
+                    .appendingPathExtension(mediaItem.fileExtension)
+                try? data.write(to: tempURL)
+                mediaItem.sourceVideoURL = tempURL
+                
+                mediaItem.status = .pending
+                
+                Task {
+                    await loadAudioMetadata(for: mediaItem, url: tempURL)
+                }
+            }
+        }
+    }
+    
+    // 加载音频元数据
+    private func loadAudioMetadata(for mediaItem: MediaItem, url: URL) async {
+        let asset = AVURLAsset(url: url)
+        
+        do {
+            let duration = try await asset.load(.duration)
+            let durationSeconds = CMTimeGetSeconds(duration)
+            
+            await MainActor.run {
+                mediaItem.duration = durationSeconds
+            }
+            
+            let tracks = try await asset.loadTracks(withMediaType: .audio)
+            if let audioTrack = tracks.first {
+                let formatDescriptions = audioTrack.formatDescriptions as! [CMFormatDescription]
+                if let formatDescription = formatDescriptions.first {
+                    let audioStreamBasicDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription)
+                    
+                    if let asbd = audioStreamBasicDescription {
+                        let sampleRate = Int(asbd.pointee.mSampleRate)
+                        let channels = Int(asbd.pointee.mChannelsPerFrame)
+                        
+                        await MainActor.run {
+                            mediaItem.audioSampleRate = sampleRate
+                            mediaItem.audioChannels = channels
+                        }
+                    }
+                }
+                
+                if let estimatedBitrate = try? await audioTrack.load(.estimatedDataRate) {
+                    let bitrateKbps = Int(estimatedBitrate / 1000)
+                    await MainActor.run {
+                        mediaItem.audioBitrate = bitrateKbps
+                    }
+                }
+            }
+            
+            await MainActor.run {
+                mediaItem.status = .pending
+            }
+        } catch {
+            print("Failed to load audio metadata: \(error)")
+            await MainActor.run {
+                mediaItem.status = .failed
+                mediaItem.errorMessage = "Failed to load audio metadata"
+            }
+        }
+    }
+    
+    // 转换音频格式
+    private func convertAudio(_ item: MediaItem) async {
+        print("[convertAudio] 开始音频转换")
+        
+        guard let sourceURL = item.sourceVideoURL else {
+            print("❌ [convertAudio] 无法加载原始音频 URL")
+            await MainActor.run {
+                item.status = .failed
+                item.errorMessage = "无法加载原始音频"
+            }
+            return
+        }
+        print("[convertAudio] 源音频 URL: \(sourceURL.path)")
+        
+        let targetFormat = settings.targetAudioFormat
+        let outputExtension = targetFormat.fileExtension
+        
+        print("[convertAudio] 目标格式: \(targetFormat.rawValue)")
+        
+        // 如果源格式和目标格式相同，直接复制
+        if item.fileExtension.lowercased() == outputExtension.lowercased() {
+            print("✅ [convertAudio] 格式相同，直接复制")
+            await MainActor.run {
+                item.compressedVideoURL = sourceURL
+                item.compressedSize = item.originalSize
+                item.outputAudioFormat = targetFormat
+                item.status = .completed
+                item.progress = 1.0
+            }
+            return
+        }
+        
+        let outputURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("converted_\(UUID().uuidString)")
+            .appendingPathExtension(outputExtension)
+        
+        print("[convertAudio] 输出 URL: \(outputURL.path)")
+        
+        // 获取音频时长用于进度计算
+        let asset = AVURLAsset(url: sourceURL)
+        let duration = CMTimeGetSeconds(asset.duration)
+        
+        // 构建 FFmpeg 命令
+        var command = "-i \"\(sourceURL.path)\""
+        
+        switch targetFormat {
+        case .mp3:
+            command += " -c:a libmp3lame -b:a 192k"
+        case .aac:
+            command += " -c:a aac -b:a 192k"
+        case .m4a:
+            command += " -c:a aac -b:a 192k"
+        case .opus:
+            command += " -c:a libopus -b:a 128k"
+        case .flac:
+            command += " -c:a flac -compression_level 8"
+        case .wav:
+            command += " -c:a pcm_s16le"
+        }
+        
+        command += " \"\(outputURL.path)\""
+        
+        print("[convertAudio] FFmpeg 命令: ffmpeg \(command)")
+        
+        await withCheckedContinuation { continuation in
+            FFmpegKit.executeAsync(command, withCompleteCallback: { session in
+                guard let session = session else {
+                    Task { @MainActor in
+                        item.status = .failed
+                        item.errorMessage = "FFmpeg session 创建失败"
+                        continuation.resume()
+                    }
+                    return
+                }
+                
+                let returnCode = session.getReturnCode()
+                
+                Task { @MainActor in
+                    if ReturnCode.isSuccess(returnCode) {
+                        print("✅ [convertAudio] FFmpeg 转换成功")
+                        item.compressedVideoURL = outputURL
+                        if let data = try? Data(contentsOf: outputURL) {
+                            item.compressedSize = data.count
+                            print("[convertAudio] 输出文件大小: \(data.count) bytes")
+                        }
+                        
+                        // 获取转换后的音频信息
+                        let resultAsset = AVURLAsset(url: outputURL)
+                        do {
+                            let tracks = try await resultAsset.loadTracks(withMediaType: .audio)
+                            if let audioTrack = tracks.first {
+                                let formatDescriptions = audioTrack.formatDescriptions as! [CMFormatDescription]
+                                if let formatDescription = formatDescriptions.first {
+                                    let audioStreamBasicDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription)
+                                    
+                                    if let asbd = audioStreamBasicDescription {
+                                        let sampleRate = Int(asbd.pointee.mSampleRate)
+                                        let channels = Int(asbd.pointee.mChannelsPerFrame)
+                                        
+                                        item.compressedAudioSampleRate = sampleRate
+                                        item.compressedAudioChannels = channels
+                                    }
+                                }
+                                
+                                if let estimatedBitrate = try? await audioTrack.load(.estimatedDataRate) {
+                                    let bitrateKbps = Int(estimatedBitrate / 1000)
+                                    item.compressedAudioBitrate = bitrateKbps
+                                }
+                            }
+                        } catch {
+                            print("Failed to load converted audio info: \(error)")
+                        }
+                        
+                        item.outputAudioFormat = targetFormat
+                        item.status = .completed
+                        item.progress = 1.0
+                    } else {
+                        print("❌ [convertAudio] FFmpeg 转换失败")
+                        let errorMessage = session.getOutput() ?? "未知错误"
+                        let lines = errorMessage.split(separator: "\n")
+                        let errorLines = lines.suffix(5).joined(separator: "\n")
+                        print("错误信息:\n\(errorLines)")
+                        
+                        item.status = .failed
+                        item.errorMessage = "音频转换失败"
+                    }
+                    continuation.resume()
+                }
+            }, withLogCallback: { log in
+                guard let log = log else { return }
+                let message = log.getMessage() ?? ""
+                
+                // 解析进度
+                if message.contains("time=") {
+                    if let timeRange = message.range(of: "time=([0-9:.]+)", options: .regularExpression) {
+                        let timeString = String(message[timeRange]).replacingOccurrences(of: "time=", with: "")
+                        if let currentTime = self.parseTimeString(timeString), duration > 0 {
+                            let progress = Float(currentTime / duration)
+                            Task { @MainActor in
+                                item.progress = min(progress, 0.99)
+                            }
+                        }
+                    }
+                }
+            }, withStatisticsCallback: { statistics in
+                guard let statistics = statistics else { return }
+                let time = Double(statistics.getTime()) / 1000.0
+                if duration > 0 {
+                    let progress = Float(time / duration)
+                    Task { @MainActor in
+                        item.progress = min(progress, 0.99)
+                    }
+                }
+            })
+        }
+        print("[convertAudio] 音频转换流程结束")
     }
 }
 

@@ -67,7 +67,7 @@ class MediaItem: Identifiable, ObservableObject {
     
     // Is this an audio file?
     var isAudio: Bool {
-        let audioExtensions = ["mp3", "m4a", "aac", "wav", "flac", "ogg"]
+        let audioExtensions = ["mp3", "m4a", "aac", "wav", "flac", "ogg", "opus"]
         return audioExtensions.contains(fileExtension.lowercased())
     }
     

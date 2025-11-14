@@ -683,6 +683,9 @@ class FormatSettings: ObservableObject {
     @Published var targetVideoFormat: String = "mp4" {
         didSet { UserDefaults.standard.set(targetVideoFormat, forKey: "targetVideoFormat") }
     }
+    @Published var targetAudioFormat: AudioFormat = .mp3 {
+        didSet { UserDefaults.standard.set(targetAudioFormat.rawValue, forKey: "targetAudioFormat") }
+    }
     @Published var useHEVC: Bool = true {
         didSet { UserDefaults.standard.set(useHEVC, forKey: "useHEVC") }
     }
@@ -699,6 +702,10 @@ class FormatSettings: ObservableObject {
         }
         if let videoFormat = UserDefaults.standard.string(forKey: "targetVideoFormat") {
             self.targetVideoFormat = videoFormat
+        }
+        if let audioFormatRaw = UserDefaults.standard.string(forKey: "targetAudioFormat"),
+           let audioFormat = AudioFormat(rawValue: audioFormatRaw) {
+            self.targetAudioFormat = audioFormat
         }
         if UserDefaults.standard.object(forKey: "useHEVC") != nil {
             self.useHEVC = UserDefaults.standard.bool(forKey: "useHEVC")
