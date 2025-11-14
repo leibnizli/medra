@@ -52,7 +52,7 @@ struct CompressionSettingsViewAudio: View {
                         Text("Audio Quality Settings")
                     } footer: {
                         if settings.audioFormat == .original {
-                            Text("Original format keeps the same format as input file. Quality settings will still apply to reduce file size while maintaining the original format.")
+                            Text("Original format keeps the same format as input file (MP3 stays MP3, AAC stays AAC, etc.). Bitrate, sample rate, and channel settings will still apply to compress the file.")
                         } else if settings.audioFormat == .flac {
                             Text("FLAC is lossless compression, bitrate setting is not applicable. Original quality will be preserved.")
                         } else if settings.audioFormat == .wav {

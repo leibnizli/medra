@@ -179,12 +179,11 @@ class FFmpegAudioCompressor {
         // Input file
         command += "-i \"\(inputPath)\""
         
-        // Audio codec and format-specific settings
-        switch format {
         case .original:
-            // This should not happen as we convert .original to actual format before calling this
-            // But if it does, use copy codec to preserve original
-            command += " -c:a copy"
+            // 理论上不应该到达这里，因为在 CompressionView 中已经将 .original 转换为实际格式
+            // 但如果真的到达这里，不指定编码器，让 FFmpeg 根据输出文件扩展名自动选择
+            // 并应用压缩参数
+            command += " -b:a \(bitrate)k"
             
         case .mp3:
             // Try libmp3lame first, fallback to built-in mp3 encoder
