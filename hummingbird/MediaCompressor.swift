@@ -19,12 +19,35 @@ enum ImageFormat: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum AudioFormat: String, CaseIterable, Identifiable {
+    case mp3 = "MP3"
+    case aac = "AAC"
+    case m4a = "M4A"
+    case opus = "OPUS"
+    case flac = "FLAC"
+    case wav = "WAV"
+    
+    var id: String { rawValue }
+    
+    var fileExtension: String {
+        switch self {
+        case .mp3: return "mp3"
+        case .aac: return "aac"
+        case .m4a: return "m4a"
+        case .opus: return "opus"
+        case .flac: return "flac"
+        case .wav: return "wav"
+        }
+    }
+}
+
 final class MediaCompressor {
     
     // Compress audio file
     static func compressAudio(
         at sourceURL: URL,
         settings: CompressionSettings,
+        outputFormat: AudioFormat = .mp3,
         originalBitrate: Int?,
         originalSampleRate: Int?,
         originalChannels: Int?,
@@ -33,12 +56,13 @@ final class MediaCompressor {
     ) {
         let outputURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("compressed_\(UUID().uuidString)")
-            .appendingPathExtension("mp3")
+            .appendingPathExtension(outputFormat.fileExtension)
         
         FFmpegAudioCompressor.compressAudio(
             inputURL: sourceURL,
             outputURL: outputURL,
             settings: settings,
+            outputFormat: outputFormat,
             originalBitrate: originalBitrate,
             originalSampleRate: originalSampleRate,
             originalChannels: originalChannels,

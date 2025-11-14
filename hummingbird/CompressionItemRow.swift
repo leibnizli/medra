@@ -118,7 +118,7 @@ struct CompressionItemRow: View {
                                     } else if item.isVideo {
                                         return item.outputVideoFormat?.uppercased() ?? ""
                                     } else if item.isAudio {
-                                        return item.fileExtension.uppercased()
+                                        return item.outputAudioFormat?.rawValue.uppercased() ?? ""
                                     }
                                     return ""
                                 }()

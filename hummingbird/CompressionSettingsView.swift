@@ -35,11 +35,24 @@ struct CompressionSettingsView: View {
                 if selectedCategory == .audio {
                     // Audio Settings
                     Section {
+                        Picker("Output Format", selection: $settings.audioFormat) {
+                            ForEach(AudioFormat.allCases) { format in
+                                Text(format.rawValue).tag(format)
+                            }
+                        }
+                    } header: {
+                        Text("Format Settings")
+                    } footer: {
+                        Text("Choose the output audio format. MP3 and AAC are widely compatible. OPUS offers better quality at lower bitrates. FLAC is lossless. WAV is uncompressed.")
+                    }
+                    
+                    Section {
                         Picker("Bitrate", selection: $settings.audioBitrate) {
                             ForEach(AudioBitrate.allCases) { bitrate in
                                 Text(bitrate.rawValue).tag(bitrate)
                             }
                         }
+                        .disabled(settings.audioFormat == .flac || settings.audioFormat == .wav)
                         
                         Picker("Sample Rate", selection: $settings.audioSampleRate) {
                             ForEach(AudioSampleRate.allCases) { sampleRate in
@@ -55,7 +68,13 @@ struct CompressionSettingsView: View {
                     } header: {
                         Text("Audio Quality Settings")
                     } footer: {
-                        Text("If the original audio quality is lower than the target settings, the original quality will be preserved to avoid unnecessary file size increase. For example, if the original audio is 128 kbps and you set 320 kbps, it will remain at 128 kbps.")
+                        if settings.audioFormat == .flac {
+                            Text("FLAC is lossless compression, bitrate setting is not applicable. Original quality will be preserved.")
+                        } else if settings.audioFormat == .wav {
+                            Text("WAV is uncompressed PCM audio, bitrate setting is not applicable.")
+                        } else {
+                            Text("If the original audio quality is lower than the target settings, the original quality will be preserved to avoid unnecessary file size increase. For example, if the original audio is 128 kbps and you set 320 kbps, it will remain at 128 kbps.")
+                        }
                     }
                     
                     Section {

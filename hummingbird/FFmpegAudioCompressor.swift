@@ -16,6 +16,7 @@ class FFmpegAudioCompressor {
         inputURL: URL,
         outputURL: URL,
         settings: CompressionSettings,
+        outputFormat: AudioFormat = .mp3,
         originalBitrate: Int?,
         originalSampleRate: Int?,
         originalChannels: Int?,
@@ -63,10 +64,11 @@ class FFmpegAudioCompressor {
             effectiveChannels = targetChannels
         }
         
-        // Generate FFmpeg command for MP3 compression
+        // Generate FFmpeg command for audio compression
         let command = generateFFmpegCommand(
             inputPath: inputURL.path,
             outputPath: outputURL.path,
+            format: outputFormat,
             bitrate: effectiveBitrate,
             sampleRate: effectiveSampleRate,
             channels: effectiveChannels
@@ -154,6 +156,7 @@ class FFmpegAudioCompressor {
     private static func generateFFmpegCommand(
         inputPath: String,
         outputPath: String,
+        format: AudioFormat,
         bitrate: Int,
         sampleRate: Int,
         channels: Int
@@ -163,14 +166,38 @@ class FFmpegAudioCompressor {
         // Input file
         command += "-i \"\(inputPath)\""
         
-        // Audio codec (libmp3lame for MP3)
-        command += " -c:a libmp3lame"
+        // Audio codec and format-specific settings
+        switch format {
+        case .mp3:
+            command += " -c:a libmp3lame"
+            command += " -b:a \(bitrate)k"
+            
+        case .aac:
+            command += " -c:a aac"
+            command += " -b:a \(bitrate)k"
+            
+        case .m4a:
+            command += " -c:a aac"
+            command += " -b:a \(bitrate)k"
+            
+        case .opus:
+            command += " -c:a libopus"
+            command += " -b:a \(bitrate)k"
+            
+        case .flac:
+            // FLAC is lossless, no bitrate setting
+            command += " -c:a flac"
+            command += " -compression_level 8"  // 0-12, higher = smaller file
+            
+        case .wav:
+            // WAV is uncompressed PCM
+            command += " -c:a pcm_s16le"
+        }
         
-        // Bitrate (use ABR mode for more predictable file size)
-        command += " -b:a \(bitrate)k"
-        
-        // Sample rate
-        command += " -ar \(sampleRate)"
+        // Sample rate (not for WAV to keep original)
+        if format != .wav {
+            command += " -ar \(sampleRate)"
+        }
         
         // Channels
         command += " -ac \(channels)"

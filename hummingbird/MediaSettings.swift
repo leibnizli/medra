@@ -267,6 +267,9 @@ class CompressionSettings: ObservableObject {
     }
     
     // Audio settings
+    @Published var audioFormat: AudioFormat = .mp3 {
+        didSet { UserDefaults.standard.set(audioFormat.rawValue, forKey: "audioFormat") }
+    }
     @Published var audioBitrate: AudioBitrate = .kbps128 {
         didSet { UserDefaults.standard.set(audioBitrate.rawValue, forKey: "audioBitrate") }
     }
@@ -364,6 +367,10 @@ class CompressionSettings: ObservableObject {
         }
         
         // Load audio settings
+        if let formatRaw = UserDefaults.standard.string(forKey: "audioFormat"),
+           let format = AudioFormat(rawValue: formatRaw) {
+            self.audioFormat = format
+        }
         if let bitrateRaw = UserDefaults.standard.string(forKey: "audioBitrate"),
            let bitrate = AudioBitrate(rawValue: bitrateRaw) {
             self.audioBitrate = bitrate

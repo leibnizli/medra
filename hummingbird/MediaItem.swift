@@ -86,6 +86,9 @@ class MediaItem: Identifiable, ObservableObject {
     // Output video format (converted format)
     var outputVideoFormat: String?
     
+    // Output audio format (compressed format)
+    var outputAudioFormat: AudioFormat?
+    
     // Temporary file URL (for video)
     var sourceVideoURL: URL?
     var compressedVideoURL: URL?

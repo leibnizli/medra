@@ -166,7 +166,7 @@ struct CompressionView: View {
             }
         }
     }
-    //选择文件 icloud
+    //MARK: 选择文件 icloud
     private func loadFileURLs(_ urls: [URL]) async {
         // 停止当前播放
         await MainActor.run {
@@ -778,6 +778,7 @@ struct CompressionView: View {
             MediaCompressor.compressAudio(
                 at: sourceURL,
                 settings: settings,
+                outputFormat: settings.audioFormat,
                 originalBitrate: item.audioBitrate,
                 originalSampleRate: item.audioSampleRate,
                 originalChannels: item.audioChannels,
@@ -807,6 +808,8 @@ struct CompressionView: View {
                                 item.compressedAudioBitrate = item.audioBitrate
                                 item.compressedAudioSampleRate = item.audioSampleRate
                                 item.compressedAudioChannels = item.audioChannels
+                                // 保持原格式
+                                item.outputAudioFormat = nil
                                 
                                 // 清理压缩后的临时文件
                                 try? FileManager.default.removeItem(at: url)
@@ -815,6 +818,7 @@ struct CompressionView: View {
                                 
                                 item.compressedVideoURL = url  // 复用这个字段
                                 item.compressedSize = compressedSize
+                                item.outputAudioFormat = self.settings.audioFormat
                                 
                                 // 获取压缩后的音频信息（在设置完成状态之前）
                                 let asset = AVURLAsset(url: url)
