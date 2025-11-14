@@ -799,8 +799,12 @@ struct CompressionView: View {
                                 compressedSize = 0
                             }
                             
-                            // 智能判断：如果压缩后反而变大，保留原始文件
-                            if compressedSize >= item.originalSize {
+                            // 检查是否是格式转换（而非压缩）
+                            let isFormatConversion = self.settings.audioFormat.fileExtension != item.fileExtension.lowercased()
+                            
+                            // 如果是格式转换，即使文件变大也使用转换后的文件
+                            // 如果是压缩（相同格式），且文件变大，则保留原始文件
+                            if !isFormatConversion && compressedSize >= item.originalSize {
                                 print("⚠️ [Audio Compression Check] Compressed size (\(compressedSize) bytes) >= Original size (\(item.originalSize) bytes), keeping original")
                                 
                                 item.compressedVideoURL = sourceURL  // 复用这个字段
@@ -814,7 +818,11 @@ struct CompressionView: View {
                                 // 清理压缩后的临时文件
                                 try? FileManager.default.removeItem(at: url)
                             } else {
-                                print("✅ [Audio Compression Check] Compression successful, reduced from \(item.originalSize) bytes to \(compressedSize) bytes")
+                                if isFormatConversion && compressedSize >= item.originalSize {
+                                    print("ℹ️ [Audio Format Conversion] Format changed from \(item.fileExtension) to \(self.settings.audioFormat.fileExtension), size increased from \(item.originalSize) bytes to \(compressedSize) bytes")
+                                } else {
+                                    print("✅ [Audio Compression Check] Compression successful, reduced from \(item.originalSize) bytes to \(compressedSize) bytes")
+                                }
                                 
                                 item.compressedVideoURL = url  // 复用这个字段
                                 item.compressedSize = compressedSize

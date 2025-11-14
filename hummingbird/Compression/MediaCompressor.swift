@@ -50,6 +50,27 @@ enum AudioFormat: String, CaseIterable, Identifiable {
         case .wav: return "Uncompressed"
         }
     }
+    
+    // Check if this format requires external encoder
+    var requiresExternalEncoder: Bool {
+        switch self {
+        case .mp3, .opus:
+            return true  // Requires libmp3lame, libopus
+        case .aac, .m4a, .flac, .wav:
+            return false  // Built-in encoders
+        }
+    }
+    
+    // Get encoder name for error messages
+    var encoderName: String {
+        switch self {
+        case .mp3: return "libmp3lame"
+        case .aac, .m4a: return "aac"
+        case .opus: return "libopus"
+        case .flac: return "flac"
+        case .wav: return "pcm_s16le"
+        }
+    }
 }
 
 final class MediaCompressor {

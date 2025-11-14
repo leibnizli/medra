@@ -78,6 +78,9 @@ class FFmpegAudioCompressor {
         print("📝 [FFmpeg Audio] Command: ffmpeg \(command)")
         print("⏱️ [FFmpeg Audio] Audio duration: \(duration) seconds")
         
+        // Capture format for use in closure
+        let audioFormat = outputFormat
+        
         // Use flag to ensure completion is only called once
         var hasCompleted = false
         let completionLock = NSLock()
@@ -114,7 +117,17 @@ class FFmpegAudioCompressor {
                 let errorLines = lines.suffix(10).joined(separator: "\n")
                 print("Error message:\n\(errorLines)")
                 
-                safeCompletion(.failure(NSError(domain: "FFmpeg", code: Int(returnCode?.getValue() ?? -1), userInfo: [NSLocalizedDescriptionKey: "Audio compression failed, please check audio format or try other settings"])))
+                // Check if error is due to missing encoder
+                var errorDescription = "Audio compression failed"
+                if errorMessage.contains("Unknown encoder") || errorMessage.contains("Encoder not found") {
+                    errorDescription = "Encoder '\(audioFormat.encoderName)' not available. Please try AAC, M4A, FLAC, or WAV format."
+                } else if errorMessage.contains("libmp3lame") {
+                    errorDescription = "MP3 encoder not available. Please try AAC or M4A format instead."
+                } else if errorMessage.contains("libopus") {
+                    errorDescription = "OPUS encoder not available. Please try AAC or M4A format instead."
+                }
+                
+                safeCompletion(.failure(NSError(domain: "FFmpeg", code: Int(returnCode?.getValue() ?? -1), userInfo: [NSLocalizedDescriptionKey: errorDescription])))
             }
         }, withLogCallback: { log in
             guard let log = log else { return }
@@ -169,8 +182,10 @@ class FFmpegAudioCompressor {
         // Audio codec and format-specific settings
         switch format {
         case .mp3:
+            // Try libmp3lame first, fallback to built-in mp3 encoder
             command += " -c:a libmp3lame"
             command += " -b:a \(bitrate)k"
+            command += " -q:a 2"  // VBR quality (0-9, lower is better)
             
         case .aac:
             command += " -c:a aac"
@@ -181,8 +196,10 @@ class FFmpegAudioCompressor {
             command += " -b:a \(bitrate)k"
             
         case .opus:
+            // Try libopus first, fallback to built-in opus encoder
             command += " -c:a libopus"
             command += " -b:a \(bitrate)k"
+            command += " -vbr on"  // Enable variable bitrate
             
         case .flac:
             // FLAC is lossless, no bitrate setting
