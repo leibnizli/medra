@@ -266,6 +266,20 @@ class CompressionSettings: ObservableObject {
         didSet { UserDefaults.standard.set(targetImageOrientationMode.rawValue, forKey: "targetImageOrientationMode") }
     }
     
+    // PNG compression settings (zopflipng parameters)
+    @Published var pngNumIterations: Int = 15 {
+        didSet { UserDefaults.standard.set(pngNumIterations, forKey: "pngNumIterations") }
+    }
+    @Published var pngNumIterationsLarge: Int = 5 {
+        didSet { UserDefaults.standard.set(pngNumIterationsLarge, forKey: "pngNumIterationsLarge") }
+    }
+    @Published var pngLossyTransparent: Bool = false {
+        didSet { UserDefaults.standard.set(pngLossyTransparent, forKey: "pngLossyTransparent") }
+    }
+    @Published var pngLossy8bit: Bool = false {
+        didSet { UserDefaults.standard.set(pngLossy8bit, forKey: "pngLossy8bit") }
+    }
+    
     // Audio settings
     @Published var audioFormat: AudioFormat = .original {
         didSet { UserDefaults.standard.set(audioFormat.rawValue, forKey: "audioFormat") }
@@ -330,6 +344,19 @@ class CompressionSettings: ObservableObject {
         if let orientationRaw = UserDefaults.standard.string(forKey: "targetImageOrientationMode"),
            let orientation = OrientationMode(rawValue: orientationRaw) {
             self.targetImageOrientationMode = orientation
+        }
+        
+        if UserDefaults.standard.object(forKey: "pngNumIterations") != nil {
+            self.pngNumIterations = UserDefaults.standard.integer(forKey: "pngNumIterations")
+        }
+        if UserDefaults.standard.object(forKey: "pngNumIterationsLarge") != nil {
+            self.pngNumIterationsLarge = UserDefaults.standard.integer(forKey: "pngNumIterationsLarge")
+        }
+        if UserDefaults.standard.object(forKey: "pngLossyTransparent") != nil {
+            self.pngLossyTransparent = UserDefaults.standard.bool(forKey: "pngLossyTransparent")
+        }
+        if UserDefaults.standard.object(forKey: "pngLossy8bit") != nil {
+            self.pngLossy8bit = UserDefaults.standard.bool(forKey: "pngLossy8bit")
         }
         
         if let codecRaw = UserDefaults.standard.string(forKey: "videoCodec"),

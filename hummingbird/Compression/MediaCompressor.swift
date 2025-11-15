@@ -81,6 +81,9 @@ enum AudioFormat: String, CaseIterable, Identifiable {
 
 final class MediaCompressor {
     
+    // Store last PNG compression parameters (actual applied values)
+    static var lastPNGCompressionParams: (numIterations: Int, numIterationsLarge: Int, actualLossyTransparent: Bool, actualLossy8bit: Bool)?
+    
     // Compress audio file
     static func compressAudio(
         at sourceURL: URL,
@@ -183,7 +186,7 @@ final class MediaCompressor {
             quality = 0.0  // PNG 不使用质量参数
         }
         
-        return await encode(image: image, quality: quality, format: format, progressHandler: progressHandler)
+        return await encode(image: image, quality: quality, format: format, settings: settings, progressHandler: progressHandler)
     }
     
     static func detectImageFormat(data: Data) -> ImageFormat {
@@ -237,7 +240,7 @@ final class MediaCompressor {
         return .jpeg
     }
 
-    static func encode(image: UIImage, quality: CGFloat, format: ImageFormat, progressHandler: ((Float) -> Void)? = nil) async -> Data {
+    static func encode(image: UIImage, quality: CGFloat, format: ImageFormat, settings: CompressionSettings, progressHandler: ((Float) -> Void)? = nil) async -> Data {
         switch format {
         case .webp:
             progressHandler?(0.3)
@@ -269,13 +272,26 @@ final class MediaCompressor {
             print("🔄 [PNG] 使用颜色量化压缩")
             progressHandler?(0.3)
             
-            if let compressedData = await PNGCompressor.compress(image: image, progressHandler: { progress in
-                // 将 PNG 压缩器的进度映射到 0.3-1.0 范围
-                let mappedProgress = 0.3 + (progress * 0.7)
-                progressHandler?(mappedProgress)
-            }) {
-                print("✅ [PNG] 压缩成功 - 大小: \(compressedData.count) bytes")
-                return compressedData
+            if let result = await PNGCompressor.compress(
+                image: image,
+                numIterations: settings.pngNumIterations,
+                numIterationsLarge: settings.pngNumIterationsLarge,
+                lossyTransparent: settings.pngLossyTransparent,
+                lossy8bit: settings.pngLossy8bit,
+                progressHandler: { progress in
+                    // 将 PNG 压缩器的进度映射到 0.3-1.0 范围
+                    let mappedProgress = 0.3 + (progress * 0.7)
+                    progressHandler?(mappedProgress)
+                }) {
+                // Record actual applied parameters
+                Self.lastPNGCompressionParams = (
+                    numIterations: settings.pngNumIterations,
+                    numIterationsLarge: settings.pngNumIterationsLarge,
+                    actualLossyTransparent: result.actualLossyTransparent,
+                    actualLossy8bit: result.actualLossy8bit
+                )
+                print("✅ [PNG] 压缩成功 - 大小: \(result.data.count) bytes")
+                return result.data
             } else {
                 print("⚠️ [PNG] 压缩失败，使用原始 PNG")
                 progressHandler?(1.0)

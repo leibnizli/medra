@@ -96,6 +96,52 @@ struct CompressionSettingsViewImage: View {
                         Text("Higher quality means larger file size, maintains original resolution. When HEIC is enabled, HEIC images will keep HEIC format; when disabled, MozJPEG will convert to JPEG format. WebP format will be compressed in original format. If compressed file is larger, original will be kept automatically")
                     }
                     
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Zopfli Iterations")
+                                Spacer()
+                                Text("\(settings.pngNumIterations)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.pngNumIterations) },
+                                set: { settings.pngNumIterations = Int($0) }
+                            ), in: 1...50, step: 1)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Large Image Iterations")
+                                Spacer()
+                                Text("\(settings.pngNumIterationsLarge)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.pngNumIterationsLarge) },
+                                set: { settings.pngNumIterationsLarge = Int($0) }
+                            ), in: 1...50, step: 1)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle("Allow Lossy Transparent Pixels", isOn: $settings.pngLossyTransparent)
+                            Text("⚠️ Only applies to images with alpha channel (transparency). Reduces file size by sacrificing transparency quality. Ignored for opaque images.")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle("Convert 16-bit to 8-bit", isOn: $settings.pngLossy8bit)
+                            Text("⚠️ Only applies to 16-bit per channel images. Reduces precision to 8-bit, which reduces file size but may lose subtle color gradations. Ignored for standard 8-bit images.")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
+                    } header: {
+                        Text("PNG Compression Settings")
+                    } footer: {
+                        Text("Zopfli iterations: Higher values = better compression but slower (default: 15). Lossy options can further reduce file size but may sacrifice quality. If lossy options don't apply to your image, they will be automatically disabled during compression.")
+                    }
+                    
                     // Open Source Libraries Notice
                     Section {
                         VStack(alignment: .leading, spacing: 16) {

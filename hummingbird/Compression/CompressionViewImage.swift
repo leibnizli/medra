@@ -780,6 +780,11 @@ struct CompressionViewImage: View {
                     item.outputImageFormat = outputFormat  // 使用压缩后的格式
                 }
                 
+                // 记录 PNG 压缩参数
+                if outputFormat == .png, let params = MediaCompressor.lastPNGCompressionParams {
+                    item.pngCompressionParams = params
+                }
+                
                 if let image = UIImage(data: item.compressedData!) {
                     item.compressedResolution = image.size
                 }

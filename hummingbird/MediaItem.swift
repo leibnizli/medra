@@ -89,6 +89,9 @@ class MediaItem: Identifiable, ObservableObject {
     // Output audio format (compressed format)
     var outputAudioFormat: AudioFormat?
     
+    // PNG compression parameters (actual applied values, not user settings)
+    @Published var pngCompressionParams: (numIterations: Int, numIterationsLarge: Int, actualLossyTransparent: Bool, actualLossy8bit: Bool)?
+    
     // Temporary file URL (for video)
     var sourceVideoURL: URL?
     var compressedVideoURL: URL?

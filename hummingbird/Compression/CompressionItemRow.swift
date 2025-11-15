@@ -202,6 +202,33 @@ struct CompressionItemRow: View {
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
+                                    
+                                    // 显示 PNG 压缩参数
+                                    if item.outputImageFormat == .png, let params = item.pngCompressionParams {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("PNG Params:")
+                                                .font(.caption2)
+                                                .fontWeight(.semibold)
+                                                .foregroundStyle(.blue)
+                                            Text("Iterations: \(params.numIterations), Large: \(params.numIterationsLarge)")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                            let lossyModes = [
+                                                params.actualLossyTransparent ? "lossy_transparent" : nil,
+                                                params.actualLossy8bit ? "lossy_8bit" : nil
+                                            ].compactMap { $0 }.joined(separator: ", ")
+                                            
+                                            if !lossyModes.isEmpty {
+                                                Text("Lossy: \(lossyModes)")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.orange)
+                                            } else {
+                                                Text("Lossy: disabled")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
                                 }
                                 
                                 // 显示音频参数（仅音频）
