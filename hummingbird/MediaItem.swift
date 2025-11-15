@@ -89,6 +89,11 @@ class MediaItem: Identifiable, ObservableObject {
     // Output audio format (compressed format)
     var outputAudioFormat: AudioFormat?
     
+    // WebP animation info
+    @Published var isAnimatedWebP: Bool = false
+    @Published var webpFrameCount: Int = 0
+    @Published var preservedAnimation: Bool = false  // 是否保留了动画
+    
     // PNG compression parameters (actual applied values, not user settings)
     @Published var pngCompressionParams: (numIterations: Int, numIterationsLarge: Int, actualLossyTransparent: Bool, actualLossy8bit: Bool)?
     

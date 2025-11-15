@@ -156,6 +156,39 @@ struct CompressionItemRow: View {
                                             .background(Color.blue.opacity(0.15))
                                             .clipShape(RoundedRectangle(cornerRadius: 4))
                                     }
+                                    
+                                    // WebP 动画标识（压缩后）
+                                    if item.isAnimatedWebP && (originalFormat == "WEBP" || outputFormat == "WEBP") {
+                                        if item.preservedAnimation {
+                                            // 保留了动画
+                                            HStack(spacing: 2) {
+                                                Image(systemName: "play.circle.fill")
+                                                    .font(.caption2)
+                                                Text("\(item.webpFrameCount) frames")
+                                                    .font(.caption2)
+                                                    .fontWeight(.medium)
+                                            }
+                                            .foregroundStyle(.green)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.green.opacity(0.15))
+                                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        } else {
+                                            // 转为静态
+                                            HStack(spacing: 2) {
+                                                Image(systemName: "photo.fill")
+                                                    .font(.caption2)
+                                                Text("Static")
+                                                    .font(.caption2)
+                                                    .fontWeight(.medium)
+                                            }
+                                            .foregroundStyle(.orange)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.orange.opacity(0.15))
+                                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        }
+                                    }
                                 }
                             } else {
                                 // 未完成时只显示原始格式
@@ -168,6 +201,22 @@ struct CompressionItemRow: View {
                                         .padding(.vertical, 2)
                                         .background(Color.secondary.opacity(0.15))
                                         .clipShape(RoundedRectangle(cornerRadius: 4))
+                                }
+                                
+                                // WebP 动画标识（压缩前）
+                                if item.isAnimatedWebP && item.fileExtension.uppercased() == "WEBP" {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "play.circle.fill")
+                                            .font(.caption2)
+                                        Text("\(item.webpFrameCount) frames")
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                    }
+                                    .foregroundStyle(.blue)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.blue.opacity(0.15))
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
                                 }
                             }
                             

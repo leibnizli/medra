@@ -9,6 +9,7 @@ import SwiftUI
 import PhotosUI
 import AVFoundation
 import Photos
+import SDWebImageWebPCoder
 
 struct CompressionViewImage: View {
     @State private var selectedItems: [PhotosPickerItem] = []
@@ -306,25 +307,37 @@ struct CompressionViewImage: View {
     
     private func loadImageItem(_ item: PhotosPickerItem, _ mediaItem: MediaItem) async {
         if let data = try? await item.loadTransferable(type: Data.self) {
+            // 检测原始图片格式
+            let isPNG = item.supportedContentTypes.contains { contentType in
+                contentType.identifier == "public.png" ||
+                contentType.conforms(to: .png)
+            }
+            let isHEIC = item.supportedContentTypes.contains { contentType in
+                contentType.identifier == "public.heic" || 
+                contentType.identifier == "public.heif" ||
+                contentType.conforms(to: .heic) ||
+                contentType.conforms(to: .heif)
+            }
+            let isWebP = item.supportedContentTypes.contains { contentType in
+                contentType.identifier == "org.webmproject.webp" ||
+                contentType.preferredMIMEType == "image/webp"
+            }
+            
+            // 检测动画 WebP（在主线程外）
+            var isAnimated = false
+            var frameCount = 0
+            if isWebP {
+                if let animatedImage = SDAnimatedImage(data: data) {
+                    let count = animatedImage.animatedImageFrameCount
+                    isAnimated = count > 1
+                    frameCount = Int(count)
+                    print("📊 [LoadImage] 检测到 WebP - 动画: \(isAnimated), 帧数: \(frameCount)")
+                }
+            }
+            
             await MainActor.run {
                 mediaItem.originalData = data
                 mediaItem.originalSize = data.count
-                
-                // 检测原始图片格式
-                let isPNG = item.supportedContentTypes.contains { contentType in
-                    contentType.identifier == "public.png" ||
-                    contentType.conforms(to: .png)
-                }
-                let isHEIC = item.supportedContentTypes.contains { contentType in
-                    contentType.identifier == "public.heic" || 
-                    contentType.identifier == "public.heif" ||
-                    contentType.conforms(to: .heic) ||
-                    contentType.conforms(to: .heif)
-                }
-                let isWebP = item.supportedContentTypes.contains { contentType in
-                    contentType.identifier == "org.webmproject.webp" ||
-                    contentType.preferredMIMEType == "image/webp"
-                }
                 
                 if isPNG {
                     mediaItem.originalImageFormat = .png
@@ -335,6 +348,8 @@ struct CompressionViewImage: View {
                 } else if isWebP {
                     mediaItem.originalImageFormat = .webp
                     mediaItem.fileExtension = "webp"
+                    mediaItem.isAnimatedWebP = isAnimated
+                    mediaItem.webpFrameCount = frameCount
                 } else {
                     mediaItem.originalImageFormat = .jpeg
                     mediaItem.fileExtension = "jpg"
@@ -749,6 +764,19 @@ struct CompressionViewImage: View {
                 item.progress = 0.5
             }
             
+            // 检测是否是动画 WebP
+            if outputFormat == .webp {
+                let webpCoder = SDImageWebPCoder.shared
+                if let animatedImage = SDAnimatedImage(data: originalData) {
+                    let frameCount = animatedImage.animatedImageFrameCount
+                    await MainActor.run {
+                        item.isAnimatedWebP = frameCount > 1
+                        item.webpFrameCount = Int(frameCount)
+                    }
+                    print("📊 [CompressionView] 检测到 WebP - 动画: \(frameCount > 1), 帧数: \(frameCount)")
+                }
+            }
+            
             let compressed = try await MediaCompressor.compressImage(
                 originalData,
                 settings: settings,
@@ -773,11 +801,25 @@ struct CompressionViewImage: View {
                     item.compressedData = originalData
                     item.compressedSize = originalData.count
                     item.outputImageFormat = item.originalImageFormat  // 保持原格式
+                    
+                    // 如果是动画 WebP，保留原始动画
+                    if item.isAnimatedWebP {
+                        item.preservedAnimation = true
+                    }
                 } else {
                     print("✅ [Compression Check] Compression successful, reduced from \(originalData.count) bytes to \(compressed.count) bytes")
                     item.compressedData = compressed
                     item.compressedSize = compressed.count
                     item.outputImageFormat = outputFormat  // 使用压缩后的格式
+                    
+                    // 验证压缩后是否保留了动画
+                    if item.isAnimatedWebP && outputFormat == .webp {
+                        if let compressedAnimated = SDAnimatedImage(data: compressed) {
+                            let compressedFrameCount = compressedAnimated.animatedImageFrameCount
+                            item.preservedAnimation = compressedFrameCount > 1
+                            print("📊 [CompressionView] 压缩后 WebP - 帧数: \(compressedFrameCount), 保留动画: \(item.preservedAnimation)")
+                        }
+                    }
                 }
                 
                 // 记录 PNG 压缩参数
