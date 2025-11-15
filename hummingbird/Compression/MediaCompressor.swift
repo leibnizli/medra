@@ -186,7 +186,9 @@ final class MediaCompressor {
             quality = 0.0  // PNG 不使用质量参数
         }
         
-        return await encode(image: image, quality: quality, format: format, settings: settings, progressHandler: progressHandler)
+        // For PNG, pass original data to avoid re-encoding
+        let originalPNGData = (format == .png) ? data : nil
+        return await encode(image: image, quality: quality, format: format, settings: settings, originalPNGData: originalPNGData, progressHandler: progressHandler)
     }
     
     static func detectImageFormat(data: Data) -> ImageFormat {
@@ -240,7 +242,7 @@ final class MediaCompressor {
         return .jpeg
     }
 
-    static func encode(image: UIImage, quality: CGFloat, format: ImageFormat, settings: CompressionSettings, progressHandler: ((Float) -> Void)? = nil) async -> Data {
+    static func encode(image: UIImage, quality: CGFloat, format: ImageFormat, settings: CompressionSettings, originalPNGData: Data? = nil, progressHandler: ((Float) -> Void)? = nil) async -> Data {
         switch format {
         case .webp:
             progressHandler?(0.3)
@@ -268,11 +270,14 @@ final class MediaCompressor {
             }
             
         case .png:
-            // PNG 使用自定义压缩器
+            // PNG 使用自定义压缩器 — 如果有原始 PNG data，直接用，不要重新编码
             print("🔄 [PNG] 使用颜色量化压缩")
             progressHandler?(0.3)
             
-            if let result = await PNGCompressor.compress(
+            let pngDataToCompress = originalPNGData ?? image.pngData() ?? Data()
+            
+            if let result = await PNGCompressor.compressWithOriginalData(
+                pngData: pngDataToCompress,
                 image: image,
                 numIterations: settings.pngNumIterations,
                 numIterationsLarge: settings.pngNumIterationsLarge,
