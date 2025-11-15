@@ -186,10 +186,10 @@ class FFmpegAudioCompressor {
             command += " -b:a \(bitrate)k"
             
         case .mp3:
-            // Try libmp3lame first, fallback to built-in mp3 encoder
+            // Use CBR (Constant Bitrate) mode for precise bitrate control
             command += " -c:a libmp3lame"
             command += " -b:a \(bitrate)k"
-            command += " -q:a 2"  // VBR quality (0-9, lower is better)
+            command += " -abr 1"  // Enable average bitrate mode for better quality at target bitrate
             
         case .aac:
             command += " -c:a aac"

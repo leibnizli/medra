@@ -58,7 +58,7 @@ struct CompressionSettingsViewAudio: View {
                         } else if settings.audioFormat == .wav {
                             Text("WAV is uncompressed PCM audio, bitrate setting is not applicable.")
                         } else {
-                            Text("If the original audio quality is lower than the target settings, the original quality will be preserved to avoid unnecessary file size increase. For example, if the original audio is 128 kbps and you set 320 kbps, it will remain at 128 kbps.")
+                            Text("Smart quality protection: If the original audio quality is lower than target settings, the original quality will be preserved to avoid unnecessary file size increase. For example, if original is 64 kbps and you set 128 kbps, it will remain at 64 kbps.")
                         }
                     }
                     
@@ -73,7 +73,7 @@ struct CompressionSettingsViewAudio: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack(alignment: .top, spacing: 8) {
                                     Text("•")
-                                    Text("Bitrate: Won't increase from low to high (e.g., 128 kbps → 320 kbps)")
+                                    Text("Bitrate: Won't increase from low to high (e.g., 64 kbps → 128 kbps)")
                                 }
                                 HStack(alignment: .top, spacing: 8) {
                                     Text("•")
@@ -95,6 +95,7 @@ struct CompressionSettingsViewAudio: View {
                     } header: {
                         Text("How It Works")
                     }
+
                 }
                 .navigationTitle("Compression Audio Settings")
                 .navigationBarTitleDisplayMode(.inline)
