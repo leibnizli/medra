@@ -245,33 +245,11 @@ struct ResolutionItemRow: View {
                     if item.isVideo, let url = item.compressedVideoURL {
                         PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
                     } else if let data = item.compressedData {
-                        // Determine file extension based on output format (support more formats)
-                        let fileExtension: String
-                        switch item.outputImageFormat {
-                        case .heic:
-                            fileExtension = "heic"
-                        case .png:
-                            fileExtension = "png"
-                        case .webp:
-                            fileExtension = "webp"
-                        case .jpeg:
-                            fileExtension = "jpg"
-                        default:
-                            fileExtension = "jpg"
-                        }
-                        
-                        // Write resized data to temporary file
-                        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
-                            .appendingPathComponent("resized_\(UUID().uuidString).\(fileExtension)")
-                        try? data.write(to: tempURL)
-                        
-                        // Save using file URL, keep original data
-                        let request = PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: tempURL)
-                        
-                        // Clean up temporary file (delayed to ensure save completes)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            try? FileManager.default.removeItem(at: tempURL)
-                        }
+                        // Use PHAssetCreationRequest.forAsset() to preserve original data format
+                        // This preserves animated WebP and other special formats
+                        let request = PHAssetCreationRequest.forAsset()
+                        request.addResource(with: .photo, data: data, options: nil)
+                        print("✅ [ResolutionItemRow] Saving image, size: \(data.count) bytes, format: \(item.outputImageFormat?.rawValue ?? "unknown")")
                     }
                 }
                 await MainActor.run {

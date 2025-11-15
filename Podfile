@@ -3,6 +3,8 @@ use_frameworks!
 
 target 'hummingbird' do
   pod 'mozjpeg', '~> 3.3'
+  pod 'SDWebImageWebPCoder', '~> 0.14.6'
+  pod 'ffmpeg-kit-ios-full', :podspec => 'https://raw.githubusercontent.com/luthviar/ffmpeg-kit-ios-full/main/ffmpeg-kit-ios-full.podspec'
 end
 
 post_install do |installer|

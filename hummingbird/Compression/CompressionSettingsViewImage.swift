@@ -90,10 +90,24 @@ struct CompressionSettingsViewImage: View {
                             }
                             Slider(value: $settings.webpQuality, in: 0.1...1.0, step: 0.05)
                         }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle("Preserve Animated WebP", isOn: $settings.preserveAnimatedWebP)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("When enabled, animated WebP files will be compressed while preserving all frames. When disabled, only the first frame will be kept (converted to static image).")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                
+                                Text("Note: If the original is already highly optimized (lossless format), compression may result in a larger file size. In such cases, the original file will be automatically preserved.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
                     } header: {
                         Text("Quality Settings")
                     } footer: {
-                        Text("Higher quality means larger file size, maintains original resolution. When HEIC is enabled, HEIC images will keep HEIC format; when disabled, MozJPEG will convert to JPEG format. WebP format will be compressed in original format. If compressed file is larger, original will be kept automatically")
+                        Text("Higher quality means larger file size. When HEIC is enabled, HEIC images will keep HEIC format; when disabled, MozJPEG will convert to JPEG format. WebP format will be compressed in original format. If compressed file is larger than original, the original will be kept automatically.")
                     }
                     
                     Section {

@@ -130,7 +130,60 @@ final class MediaCompressor {
             format = detectImageFormat(data: data)
         }
         
-        // 常规图片处理（包括 WebP）
+        // 特殊处理：检测动画 WebP
+        if format == .webp {
+            let originalSize = data.count
+            print("🔍 [WebP] 开始检测 WebP 类型，原始大小: \(originalSize) bytes")
+            
+            // 检查文件头中的 VP8X 标志位
+            var hasAnimationFlag = false
+            if data.count >= 30 {
+                let bytes = [UInt8](data.prefix(30))
+                // VP8X chunk 在偏移 12 处，标志位在偏移 20 处
+                if bytes.count >= 21 && bytes[12] == 0x56 && bytes[13] == 0x50 && bytes[14] == 0x38 && bytes[15] == 0x58 {
+                    let flags = bytes[20]
+                    hasAnimationFlag = (flags & 0x02) != 0  // 第 2 位表示动画
+                    print("📊 [WebP] VP8X 标志位: 0x\(String(format: "%02X", flags)), 动画标志: \(hasAnimationFlag)")
+                }
+            }
+            
+            // 使用 SDAnimatedImage 检测帧数
+            if let animatedImage = SDAnimatedImage(data: data) {
+                let frameCount = animatedImage.animatedImageFrameCount
+                print("📊 [WebP] SDAnimatedImage 检测帧数: \(frameCount)")
+                
+                if frameCount > 1 {
+                    print("🎬 [WebP] 检测到动画 WebP，帧数: \(frameCount)")
+                    
+                    // 检查是否保留动画
+                    if settings.preserveAnimatedWebP {
+                        print("✅ [WebP] 设置：保留动画，开始压缩")
+                        progressHandler?(0.2)
+                        
+                        let quality = CGFloat(settings.webpQuality)
+                        return await encodeAnimatedWebP(
+                            animatedImage: animatedImage,
+                            quality: quality,
+                            settings: settings,
+                            originalSize: originalSize,
+                            progressHandler: progressHandler
+                        )
+                    } else {
+                        print("⚠️ [WebP] 设置：不保留动画，只保留第一帧")
+                        // 继续常规处理，会自动只处理第一帧
+                    }
+                } else if hasAnimationFlag {
+                    print("⚠️ [WebP] 文件头标记为动画，但 SDAnimatedImage 只检测到 \(frameCount) 帧")
+                    print("⚠️ [WebP] 可能是 SDWebImage 版本问题，回退到静态处理")
+                } else {
+                    print("📋 [WebP] 静态 WebP（帧数: \(frameCount)），继续常规处理")
+                }
+            } else {
+                print("⚠️ [WebP] SDAnimatedImage 初始化失败")
+            }
+        }
+        
+        // 常规图片处理（包括静态 WebP）
         guard var image = UIImage(data: data) else { throw MediaCompressionError.imageDecodeFailed }
         
         // 修正图片方向，防止压缩后旋转
@@ -242,6 +295,88 @@ final class MediaCompressor {
         return .jpeg
     }
 
+    // 编码动画 WebP
+    static func encodeAnimatedWebP(
+        animatedImage: SDAnimatedImage,
+        quality: CGFloat,
+        settings: CompressionSettings,
+        originalSize: Int,
+        progressHandler: ((Float) -> Void)?
+    ) async -> Data {
+        progressHandler?(0.3)
+        print("🔄 [WebP] 开始动画 WebP 压缩 - 质量: \(quality)")
+        print("📊 [WebP] 原始动画信息 - 帧数: \(animatedImage.animatedImageFrameCount), 循环次数: \(animatedImage.animatedImageLoopCount), 原始大小: \(originalSize) bytes")
+        
+        let webpCoder = SDImageWebPCoder.shared
+        let normalizedQuality = max(0.01, min(1.0, quality))
+        
+        // 提取所有帧
+        var frames: [SDImageFrame] = []
+        for i in 0..<animatedImage.animatedImageFrameCount {
+            if let frameImage = animatedImage.animatedImageFrame(at: i) {
+                let duration = animatedImage.animatedImageDuration(at: i)
+                let frame = SDImageFrame(image: frameImage, duration: duration)
+                frames.append(frame)
+                print("📸 [WebP] 提取帧 \(i+1)/\(animatedImage.animatedImageFrameCount) - 时长: \(duration)s")
+            }
+        }
+        
+        print("📊 [WebP] 共提取 \(frames.count) 帧")
+        
+        // 使用 encodedData(with:loopCount:format:options:) 方法编码动画
+        // 注意：SDWebImageWebPCoder 默认使用有损压缩（VP8），不是无损（VP8L）
+        let options: [SDImageCoderOption: Any] = [
+            .encodeCompressionQuality: normalizedQuality,
+            .encodeFirstFrameOnly: false  // 编码所有帧
+        ]
+        
+        print("🔧 [WebP] 编码选项: quality=\(normalizedQuality), encodeFirstFrameOnly=false, frames=\(frames.count)")
+        print("💡 [WebP] 提示：原始文件可能是无损 WebP，重新编码为有损格式")
+        
+        if let webpData = webpCoder.encodedData(with: frames, loopCount: animatedImage.animatedImageLoopCount, format: .webP, options: options) {
+            // 验证压缩后的数据是否仍然是动画
+            if let verifyImage = SDAnimatedImage(data: webpData) {
+                let verifyFrameCount = verifyImage.animatedImageFrameCount
+                let compressionRatio = Double(webpData.count) / Double(originalSize)
+                
+                print("✅ [WebP] 动画压缩成功")
+                print("   - 质量: \(normalizedQuality)")
+                print("   - 原始帧数: \(animatedImage.animatedImageFrameCount)")
+                print("   - 压缩后帧数: \(verifyFrameCount)")
+                print("   - 原始大小: \(originalSize) bytes")
+                print("   - 压缩后大小: \(webpData.count) bytes")
+                print("   - 压缩比: \(String(format: "%.1f%%", compressionRatio * 100))")
+                
+                if verifyFrameCount != animatedImage.animatedImageFrameCount {
+                    print("⚠️ [WebP] 警告：帧数不匹配！可能丢失了动画")
+                } else {
+                    print("✅ [WebP] 帧数匹配，动画完整保留")
+                }
+                
+                if webpData.count >= originalSize {
+                    print("⚠️ [WebP] 压缩后反而变大，可能原始文件已经是高度优化的无损 WebP")
+                    print("💡 [WebP] 建议：降低质量参数（当前 \(normalizedQuality)）或保留原始文件")
+                }
+            } else {
+                print("⚠️ [WebP] 警告：无法验证压缩后的动画数据")
+            }
+            
+            progressHandler?(1.0)
+            return webpData
+        } else {
+            print("❌ [WebP] 动画编码失败，回退到第一帧")
+            // 回退：只编码第一帧
+            if let firstFrame = animatedImage.animatedImageFrame(at: 0),
+               let webpData = webpCoder.encodedData(with: firstFrame, format: .webP, options: [.encodeCompressionQuality: normalizedQuality]) {
+                progressHandler?(1.0)
+                print("✅ [WebP] 回退到第一帧成功 - 大小: \(webpData.count) bytes")
+                return webpData
+            }
+            progressHandler?(1.0)
+            return Data()
+        }
+    }
+    
     static func encode(image: UIImage, quality: CGFloat, format: ImageFormat, settings: CompressionSettings, originalPNGData: Data? = nil, progressHandler: ((Float) -> Void)? = nil) async -> Data {
         switch format {
         case .webp:

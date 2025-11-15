@@ -580,31 +580,11 @@ struct CompressionItemRow: View {
                             try? FileManager.default.removeItem(at: compatibleURL)
                         }
                     } else if let data = item.compressedData {
-                        // 根据输出格式确定文件扩展名
-                        let fileExtension: String
-                        switch item.outputImageFormat {
-                        case .heic:
-                            fileExtension = "heic"
-                        case .png:
-                            fileExtension = "png"
-                        case .webp:
-                            fileExtension = "webp"
-                        default:
-                            fileExtension = "jpg"
-                        }
-                        
-                        // 将压缩后的数据写入临时文件
-                        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory())
-                            .appendingPathComponent("compressed_\(UUID().uuidString).\(fileExtension)")
-                        try? data.write(to: tempURL)
-                        
-                        // 使用文件 URL 保存，保持原始压缩数据
-                        let request = PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: tempURL)
-                        
-                        // 清理临时文件（延迟执行，确保保存完成）
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            try? FileManager.default.removeItem(at: tempURL)
-                        }
+                        // 使用 PHAssetCreationRequest.forAsset() 保存原始数据
+                        // 这样可以保留动画 WebP 等特殊格式
+                        let request = PHAssetCreationRequest.forAsset()
+                        request.addResource(with: .photo, data: data, options: nil)
+                        print("✅ [CompressionItemRow] 保存图片，大小: \(data.count) bytes，格式: \(item.outputImageFormat?.rawValue ?? "unknown")")
                     }
                 }
                 await MainActor.run {
