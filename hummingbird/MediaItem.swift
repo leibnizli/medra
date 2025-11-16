@@ -33,6 +33,7 @@ class MediaItem: Identifiable, ObservableObject {
     @Published var status: CompressionStatus = .pending
     @Published var progress: Float = 0
     @Published var errorMessage: String?
+    @Published var infoMessage: String?
     @Published var thumbnailImage: UIImage?
     @Published var fileExtension: String = ""
     
@@ -248,21 +249,72 @@ class MediaItem: Identifiable, ObservableObject {
              0x61766333: // 'avc3'
             return "H.264"
             
-        // MPEG-4
+        // MPEG-4 Part 2
         case kCMVideoCodecType_MPEG4Video,
              0x6d703476: // 'mp4v'
             return "MPEG-4"
+            
+        // MPEG-2
+        case kCMVideoCodecType_MPEG2Video:
+            return "MPEG-2"
+            
+        // MPEG-1
+        case kCMVideoCodecType_MPEG1Video:
+            return "MPEG-1"
             
         // VP9
         case kCMVideoCodecType_VP9,
              0x76703039: // 'vp09'
             return "VP9"
             
+        // VP8
+        case 0x76703038: // 'vp08'
+            return "VP8"
+            
+        // AV1
+        case 0x61763031: // 'av01'
+            return "AV1"
+            
+        // DivX/Xvid
+        case 0x64697678, // 'divx'
+             0x44495633, // 'DIV3'
+             0x44585430: // 'DXT0'
+            return "DivX"
+            
+        // Dolby Vision variants
+        case 0x64766865: // 'dvhe'
+            return "DVHE"
+        case 0x64766831: // 'dvh1'
+            return "DVH1"
+        case 0x64766131: // 'dva1'
+            return "DVA1"
+        case 0x64766176: // 'dvav'
+            return "DVAV"
+        case 0x64766863: // 'dvhc'
+            return "DVHC"
+
+        // ProRes variants
+        case kCMVideoCodecType_AppleProRes422,
+             kCMVideoCodecType_AppleProRes4444,
+             kCMVideoCodecType_AppleProRes422HQ,
+             kCMVideoCodecType_AppleProRes422LT,
+             kCMVideoCodecType_AppleProRes422Proxy:
+            return "ProRes"
+            
+        // H.263
+        case 0x68323633: // 'h263'
+            return "H.263"
+            
         default:
-            // 返回 FourCC 字符串
-            print("⚠️ [codecTypeToString] 未知编码: \(fourCCString) (0x\(String(format: "%08X", codecType)))")
+            // 返回 FourCC 字符串作为通用标识
+            print("ℹ️ [codecTypeToString] 编码: \(fourCCString) (0x\(String(format: "%08X", codecType)))")
             return fourCCString
         }
+    }
+
+    static func isDolbyVisionCodec(_ codecIdentifier: String?) -> Bool {
+        guard let identifier = codecIdentifier?.lowercased() else { return false }
+        return ["dvhe", "dvh1", "dva1", "dvav", "dvhc", "dvhb", "dvmo"].contains { identifier.contains($0) }
     }
     
     // Lazy load video data (only load when needed)

@@ -571,6 +571,13 @@ struct ResolutionView: View {
         if let codec = await MediaItem.detectVideoCodecAsync(from: url) {
             await MainActor.run {
                 mediaItem.videoCodec = codec
+                
+                // 检查编码格式是否支持（只支持 HEVC 和 H.264）
+                if codec != "HEVC" && codec != "H.264" && codec != "FMP4" {
+                    mediaItem.status = .failed
+                    mediaItem.errorMessage = "Unsupported video codec: \(codec). Only HEVC and H.264 are supported."
+                    return
+                }
             }
         }
         
@@ -579,7 +586,10 @@ struct ResolutionView: View {
         
         // 视频元数据加载完成，设置为等待状态
         await MainActor.run {
-            mediaItem.status = .pending
+            // 只有在状态不是失败时才设置为 pending
+            if mediaItem.status != .failed {
+                mediaItem.status = .pending
+            }
         }
     }
     

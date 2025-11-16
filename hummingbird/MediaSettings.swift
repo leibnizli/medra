@@ -71,8 +71,8 @@ enum VideoCodec: String, CaseIterable, Identifiable {
     
     var description: String {
         switch self {
-        case .h264: return "Hardware encoding, best compatibility"
-        case .h265: return "Hardware encoding, smaller file size"
+        case .h264: return "Hardware encoding, best compatibility, supports all input formats"
+        case .h265: return "Hardware encoding, smaller file size, supports all input formats"
         }
     }
 }

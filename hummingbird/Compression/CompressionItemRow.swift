@@ -480,6 +480,13 @@ struct CompressionItemRow: View {
                                 .tint(.blue)
                         }
                         
+                        if let info = item.infoMessage {
+                            Text(info)
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                                .lineLimit(3)
+                        }
+
                         // 错误信息
                         if let error = item.errorMessage {
                             Text(error)

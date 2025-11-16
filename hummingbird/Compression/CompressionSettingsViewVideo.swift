@@ -98,6 +98,9 @@ struct CompressionSettingsViewVideo: View {
                             Text(settings.videoCodec.description)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            Text("Dolby Vision (DVHE/DVH1) sources keep the original video stream to preserve metadata; the app only adjusts the container when needed.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                         
                         // Quality preset

@@ -162,7 +162,7 @@ class FFmpegVideoCompressor {
         }
 
         // -c copy means directly copy streams, avoid re-encoding
-        let command = "-i \"\(inputPath)\" -c copy -movflags +faststart \"\(outputPath)\""
+        let command = "-i \"\(inputPath)\" -map 0 -c copy -map_metadata 0 -movflags +faststart \"\(outputPath)\""
 
         print("🎬 [FFmpeg Remux] Starting remux")
         print("📝 [FFmpeg Remux] Command: ffmpeg \(command)")
@@ -195,6 +195,54 @@ class FFmpegVideoCompressor {
                 let errorLines = lines.suffix(10).joined(separator: "\n")
                 print("Error message:\n\(errorLines)")
                 safeCompletion(.failure(NSError(domain: "FFmpeg", code: Int(returnCode?.getValue() ?? -1), userInfo: [NSLocalizedDescriptionKey: "Remux failed"])))
+            }
+        }, withLogCallback: { _ in }, withStatisticsCallback: { _ in })
+    }
+
+    static func extractThumbnail(
+        from inputURL: URL,
+        at second: Double = 1.0,
+        completion: @escaping (Result<URL, Error>) -> Void
+    ) {
+        let inputPath = inputURL.path
+        let outputURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("thumb_\(UUID().uuidString)")
+            .appendingPathExtension("jpg")
+        let outputPath = outputURL.path
+
+        // Remove existing file if any
+        try? FileManager.default.removeItem(atPath: outputPath)
+
+        // Clamp seek position to non-negative values
+        let seekTime = max(0.0, second)
+        let seekParameter = String(format: "%.3f", seekTime)
+
+        let command = "-hide_banner -ss \(seekParameter) -i \"\(inputPath)\" -map 0:v:0 -frames:v 1 -q:v 2 -y \"\(outputPath)\""
+
+        var hasCompleted = false
+        let completionLock = NSLock()
+        let safeCompletion: (Result<URL, Error>) -> Void = { result in
+            completionLock.lock()
+            defer { completionLock.unlock() }
+            if !hasCompleted {
+                hasCompleted = true
+                completion(result)
+            }
+        }
+
+        FFmpegKit.executeAsync(command, withCompleteCallback: { session in
+            guard let session = session else {
+                safeCompletion(.failure(NSError(domain: "FFmpeg", code: -1, userInfo: [NSLocalizedDescriptionKey: "Session creation failed"])))
+                return
+            }
+
+            let returnCode = session.getReturnCode()
+            if ReturnCode.isSuccess(returnCode) {
+                safeCompletion(.success(outputURL))
+            } else {
+                let errorMessage = session.getOutput() ?? "Unknown error"
+                print("❌ [FFmpeg Thumbnail] Failed\n\(errorMessage)")
+                safeCompletion(.failure(NSError(domain: "FFmpeg", code: Int(returnCode?.getValue() ?? -1), userInfo: [NSLocalizedDescriptionKey: "Thumbnail extraction failed"])))
             }
         }, withLogCallback: { _ in }, withStatisticsCallback: { _ in })
     }

@@ -9,6 +9,7 @@ import SwiftUI
 import PhotosUI
 import AVFoundation
 import Photos
+import ffmpegkit
 
 struct CompressionViewVideo: View {
     @State private var selectedItems: [PhotosPickerItem] = []
@@ -491,10 +492,26 @@ struct CompressionViewVideo: View {
             print("Failed to load video track info: \(error)")
         }
         
+        // AVFoundation 无法解析时，使用 FFprobe 兜底
+        let needsFallback = {
+            let durationValid = (mediaItem.duration ?? 0) > 0.0
+            let frameRateValid = (mediaItem.frameRate ?? 0) > 0.0
+            let resolutionValid = mediaItem.originalResolution != nil
+            return !durationValid || !frameRateValid || !resolutionValid
+        }()
+        
+        if needsFallback {
+            await loadVideoMetadataFallback(for: mediaItem, url: url)
+        }
+        
         // 检测视频编码（使用异步版本更可靠）
         if let codec = await MediaItem.detectVideoCodecAsync(from: url) {
             await MainActor.run {
                 mediaItem.videoCodec = codec
+                
+                // 记录编码信息，但不再限制格式
+                // FFmpeg 会自动处理各种输入编码格式
+                print("🎬 [Video Codec] 检测到编码: \(codec)")
             }
         }
         
@@ -503,7 +520,10 @@ struct CompressionViewVideo: View {
         
         // 视频元数据加载完成，设置为等待状态
         await MainActor.run {
-            mediaItem.status = .pending
+            // 只有在状态不是失败时才设置为 pending
+            if mediaItem.status != .failed {
+                mediaItem.status = .pending
+            }
         }
     }
     
@@ -529,22 +549,146 @@ struct CompressionViewVideo: View {
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
         generator.maximumSize = CGSize(width: 160, height: 160)
+        generator.apertureMode = .encodedPixels
         
         // 优化：设置更快的缩略图生成选项
         generator.requestedTimeToleranceBefore = CMTime(seconds: 1, preferredTimescale: 600)
         generator.requestedTimeToleranceAfter = CMTime(seconds: 1, preferredTimescale: 600)
         
-        do {
-            let cgImage = try await generator.image(at: CMTime(seconds: 1, preferredTimescale: 600)).image
-            let thumbnail = UIImage(cgImage: cgImage)
-            await MainActor.run {
-                item.thumbnailImage = thumbnail
+        // 针对 Dolby Vision 等特殊素材，尝试多个时间点
+        let durationSeconds = CMTimeGetSeconds(asset.duration)
+        let candidateSeconds: [Double] = {
+            var seconds: [Double] = []
+            if durationSeconds > 0 {
+                let mid = max(0.1, durationSeconds / 2.0)
+                seconds.append(min(1.0, mid))
             }
-        } catch {
-            print("Failed to generate video thumbnail: \(error)")
-            // 设置默认视频图标
+            seconds.append(contentsOf: [0.1, 0])
+            return Array(Set(seconds)).sorted(by: >)
+        }()
+        
+        for second in candidateSeconds {
+            do {
+                let time = CMTime(seconds: second, preferredTimescale: 600)
+                let cgResult = try await generator.image(at: time)
+                let thumbnail = UIImage(cgImage: cgResult.image)
+                await MainActor.run {
+                    item.thumbnailImage = thumbnail
+                }
+                return
+            } catch {
+                print("⚠️ [Thumbnail] Failed at \(second)s: \(error.localizedDescription)")
+            }
+        }
+
+        if let fallbackImage = await generateVideoThumbnailViaFFmpeg(for: item, url: url, duration: durationSeconds) {
             await MainActor.run {
-                item.thumbnailImage = UIImage(systemName: "video.fill")
+                item.thumbnailImage = fallbackImage
+            }
+            return
+        }
+        
+        // 设置默认视频图标
+        await MainActor.run {
+            item.thumbnailImage = UIImage(systemName: "video.fill")
+        }
+    }
+
+    private func loadVideoMetadataFallback(for mediaItem: MediaItem, url: URL) async {
+        guard let info = await fetchFFprobeVideoInfo(url: url) else { return }
+        await MainActor.run {
+            if mediaItem.originalResolution == nil, let width = info.width, let height = info.height {
+                mediaItem.originalResolution = CGSize(width: width, height: height)
+            }
+            if (mediaItem.duration ?? 0) <= 0, let duration = info.duration {
+                mediaItem.duration = duration
+            }
+            if (mediaItem.frameRate ?? 0) <= 0, let fps = info.frameRate {
+                mediaItem.frameRate = fps
+            }
+        }
+    }
+
+    private struct FFprobeVideoInfo {
+        let width: Int?
+        let height: Int?
+        let duration: Double?
+        let frameRate: Double?
+    }
+
+    private func fetchFFprobeVideoInfo(url: URL) async -> FFprobeVideoInfo? {
+        return await withCheckedContinuation { (continuation: CheckedContinuation<FFprobeVideoInfo?, Never>) in
+            FFprobeKit.getMediaInformationAsync(url.path) { session in
+                guard let info = session?.getMediaInformation() else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let duration = Double(info.getDuration() ?? "") ?? 0
+                var width: Int?
+                var height: Int?
+                var fps: Double?
+                if let streams = info.getStreams() as? [StreamInformation] {
+                    if let videoStream = streams.first(where: { ($0.getType() ?? "") == "video" }) {
+                        if let widthValue = videoStream.getWidth()?.intValue {
+                            width = widthValue
+                        }
+                        if let heightValue = videoStream.getHeight()?.intValue {
+                            height = heightValue
+                        }
+                        if let frameRateString = videoStream.getAverageFrameRate(), !frameRateString.isEmpty {
+                            fps = parseFrameRate(frameRateString)
+                        } else if let frameRateString = videoStream.getRealFrameRate(), !frameRateString.isEmpty {
+                            fps = parseFrameRate(frameRateString)
+                        }
+                    }
+                }
+                continuation.resume(returning: FFprobeVideoInfo(
+                    width: width,
+                    height: height,
+                    duration: duration > 0 ? duration : nil,
+                    frameRate: (fps ?? 0) > 0 ? fps : nil
+                ))
+            }
+        }
+    }
+
+    private func parseFrameRate(_ value: String) -> Double? {
+        if value.contains("/") {
+            let parts = value.split(separator: "/")
+            if parts.count == 2,
+               let numerator = Double(parts[0]),
+               let denominator = Double(parts[1]),
+               denominator != 0 {
+                return numerator / denominator
+            }
+        }
+        return Double(value)
+    }
+
+    private func generateVideoThumbnailViaFFmpeg(for item: MediaItem, url: URL, duration: Double) async -> UIImage? {
+        let capturePoint: Double
+        if duration.isFinite && duration > 0.0 {
+            capturePoint = min(max(duration / 2.0, 0.1), 5.0)
+        } else {
+            capturePoint = 0.5
+        }
+
+        return await withCheckedContinuation { continuation in
+            FFmpegVideoCompressor.extractThumbnail(from: url, at: capturePoint) { result in
+                switch result {
+                case .success(let outputURL):
+                    let image = (try? Data(contentsOf: outputURL)).flatMap { UIImage(data: $0) }
+                    try? FileManager.default.removeItem(at: outputURL)
+                    if let image = image {
+                        print("✅ [Thumbnail] Generated via FFmpeg at \(capturePoint)s")
+                        continuation.resume(returning: image)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                case .failure(let error):
+                    print("❌ [Thumbnail] FFmpeg fallback failed: \(error.localizedDescription)")
+                    continuation.resume(returning: nil)
+                }
             }
         }
     }
@@ -572,6 +716,7 @@ struct CompressionViewVideo: View {
                     item.compressedResolution = nil
                     item.compressedVideoURL = nil
                     item.errorMessage = nil
+                    item.infoMessage = nil
                 }
             }
             
@@ -589,6 +734,7 @@ struct CompressionViewVideo: View {
     
     private func compressItem(_ item: MediaItem) async {
         await MainActor.run {
+            item.infoMessage = nil
             item.status = .compressing
             item.progress = 0
         }
@@ -622,6 +768,12 @@ struct CompressionViewVideo: View {
             }
             return .mp4
         }()
+
+        // Dolby Vision (dvhe/dvh1 etc.) cannot retain metadata after re-encoding.
+        if MediaItem.isDolbyVisionCodec(item.videoCodec) {
+            await preserveDolbyVisionStream(for: item, sourceURL: sourceURL, desiredOutputFileType: desiredOutputFileType)
+            return
+        }
 
         // 使用 continuation 等待压缩完成
         await withCheckedContinuation { continuation in
@@ -751,6 +903,90 @@ struct CompressionViewVideo: View {
                 }
             }
         )
+        }
+    }
+
+    private func preserveDolbyVisionStream(for item: MediaItem, sourceURL: URL, desiredOutputFileType: AVFileType) async {
+        await MainActor.run {
+            item.progress = 0.05
+        }
+
+        let desiredExt: String = {
+            switch desiredOutputFileType {
+            case .mov: return "mov"
+            case .m4v: return "m4v"
+            default: return "mp4"
+            }
+        }()
+
+        // Dolby Vision 不支持 m4v 容器，自动回退到 mp4
+        let fallbackToMP4 = (desiredExt == "m4v")
+        let targetExt: String = fallbackToMP4 ? "mp4" : desiredExt
+        if fallbackToMP4 {
+            print("⚠️ [Dolby Vision] M4V does not preserve Dolby Vision metadata. Falling back to mp4 container.")
+        }
+
+        await MainActor.run {
+            if item.outputVideoFormat?.lowercased() != targetExt {
+                item.outputVideoFormat = targetExt
+            }
+        }
+
+        let sourceExt = sourceURL.pathExtension.lowercased()
+
+        // 如果容器一致，直接复用原始文件
+        if sourceExt == targetExt {
+            await MainActor.run {
+                item.compressedVideoURL = sourceURL
+                item.compressedSize = item.originalSize
+                item.compressedResolution = item.originalResolution
+                item.compressedFrameRate = item.frameRate
+                item.compressedVideoCodec = item.videoCodec
+                item.errorMessage = nil
+                if fallbackToMP4 {
+                    item.infoMessage = "Dolby Vision detected. Kept original video and switched container to MP4 to preserve metadata."
+                } else {
+                    item.infoMessage = "Dolby Vision detected. Original video kept without recompression."
+                }
+                item.progress = 1.0
+                item.status = .completed
+            }
+            return
+        }
+
+        let outputURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("dolbyvision_\(item.id.uuidString)")
+            .appendingPathExtension(targetExt)
+
+        await withCheckedContinuation { continuation in
+            FFmpegVideoCompressor.remux(inputURL: sourceURL, outputURL: outputURL) { result in
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success(let finalURL):
+                        let finalSize = (try? Data(contentsOf: finalURL).count) ?? item.originalSize
+                        item.compressedVideoURL = finalURL
+                        item.compressedSize = finalSize
+                        item.compressedResolution = item.originalResolution
+                        item.compressedFrameRate = item.frameRate
+                        item.compressedVideoCodec = item.videoCodec
+                        item.errorMessage = nil
+                        if fallbackToMP4 {
+                            item.infoMessage = "Dolby Vision detected. Remuxed to MP4 to preserve Dolby Vision metadata."
+                        } else {
+                            item.infoMessage = "Dolby Vision detected. Remuxed without recompression to keep Dolby Vision metadata."
+                        }
+                        item.progress = 1.0
+                        item.status = .completed
+                        print("✅ [Dolby Vision] Remux successful. Metadata preserved in .\(targetExt)")
+                    case .failure(let error):
+                        item.infoMessage = nil
+                        item.status = .failed
+                        item.errorMessage = error.localizedDescription
+                        print("❌ [Dolby Vision] Remux failed: \(error.localizedDescription)")
+                    }
+                    continuation.resume()
+                }
+            }
         }
     }
 }
