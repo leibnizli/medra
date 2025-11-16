@@ -163,8 +163,25 @@ struct VideoFormatConversionView: View {
         }
         .navigationTitle("Video Format")
         .navigationBarTitleDisplayMode(.inline)
-        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 20, matching: .videos)
-        .fileImporter(isPresented: $showingFilePicker, allowedContentTypes: [.movie, .video], allowsMultipleSelection: true) { result in
+        .photosPicker(
+            isPresented: $showingPhotoPicker,
+            selection: $selectedItems,
+            maxSelectionCount: 20,
+            matching: .any(of: [
+                UTType(filenameExtension: "mp4")!,
+                UTType(filenameExtension: "mov")!,
+                UTType(filenameExtension: "m4v")!
+            ])
+        )
+        .fileImporter(
+            isPresented: $showingFilePicker,
+            allowedContentTypes: [
+                UTType(filenameExtension: "mp4")!,
+                UTType(filenameExtension: "mov")!,
+                UTType(filenameExtension: "m4v")!
+            ],
+            allowsMultipleSelection: true
+        ) { result in
             do {
                 let urls = try result.get()
                 Task {
@@ -768,6 +785,18 @@ struct VideoFormatConversionView: View {
         } catch {
             print("Failed to load video track info: \(error)")
         }
+
+        let needsFallback = {
+            let durationValid = (mediaItem.duration ?? 0) > 0
+            let frameRateValid = (mediaItem.frameRate ?? 0) > 0
+            let resolutionValid = mediaItem.originalResolution != nil
+            return !durationValid || !frameRateValid || !resolutionValid
+        }()
+
+        var ffprobeInfo: FFprobeVideoInfo?
+        if needsFallback {
+            ffprobeInfo = await loadVideoMetadataFallback(for: mediaItem, url: url)
+        }
         
         // 检测视频编码（使用异步版本更可靠）
         if let codec = await MediaItem.detectVideoCodecAsync(from: url) {
@@ -780,6 +809,10 @@ struct VideoFormatConversionView: View {
                     mediaItem.errorMessage = "Unsupported video codec: \(codec). Only HEVC and H.264 are supported."
                     return
                 }
+            }
+        } else if let fallbackCodec = ffprobeInfo?.codec, !fallbackCodec.isEmpty {
+            await MainActor.run {
+                mediaItem.videoCodec = fallbackCodec
             }
         }
         
@@ -799,23 +832,241 @@ struct VideoFormatConversionView: View {
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
         generator.maximumSize = CGSize(width: 160, height: 160)
+        generator.apertureMode = .encodedPixels
         
         // 优化：设置更快的缩略图生成选项
         generator.requestedTimeToleranceBefore = CMTime(seconds: 1, preferredTimescale: 600)
         generator.requestedTimeToleranceAfter = CMTime(seconds: 1, preferredTimescale: 600)
-        
-        do {
-            let cgImage = try await generator.image(at: CMTime(seconds: 1, preferredTimescale: 600)).image
-            let thumbnail = UIImage(cgImage: cgImage)
-            await MainActor.run {
-                item.thumbnailImage = thumbnail
+
+        let durationSeconds = CMTimeGetSeconds(asset.duration)
+        let candidateSeconds: [Double] = {
+            var seconds: [Double] = []
+            if durationSeconds > 0 {
+                let mid = max(0.1, durationSeconds / 2.0)
+                seconds.append(min(1.0, mid))
             }
-        } catch {
-            print("Failed to generate video thumbnail: \(error)")
-            // 设置默认视频图标
-            await MainActor.run {
-                item.thumbnailImage = UIImage(systemName: "video.fill")}
+            seconds.append(contentsOf: [0.5, 0.1, 0])
+            return Array(Set(seconds)).sorted(by: >)
+        }()
+        
+        for second in candidateSeconds {
+            do {
+                let time = CMTime(seconds: second, preferredTimescale: 600)
+                let cgResult = try await generator.image(at: time)
+                let thumbnail = UIImage(cgImage: cgResult.image)
+                await MainActor.run {
+                    item.thumbnailImage = thumbnail
+                }
+                return
+            } catch {
+                print("⚠️ [Format Thumbnail] Failed at \(second)s: \(error.localizedDescription)")
+            }
         }
+
+        if let fallbackImage = await generateVideoThumbnailViaFFmpeg(for: item, url: url, duration: durationSeconds) {
+            await MainActor.run {
+                item.thumbnailImage = fallbackImage
+            }
+            return
+        }
+        
+        await MainActor.run {
+            item.thumbnailImage = UIImage(systemName: "video.fill")
+        }
+    }
+
+    private func generateVideoThumbnailViaFFmpeg(for item: MediaItem, url: URL, duration: Double) async -> UIImage? {
+        let capturePoint: Double
+        if duration.isFinite && duration > 0.0 {
+            capturePoint = min(max(duration / 2.0, 0.1), 5.0)
+        } else {
+            capturePoint = 0.5
+        }
+
+        return await withCheckedContinuation { continuation in
+            FFmpegVideoCompressor.extractThumbnail(from: url, at: capturePoint) { result in
+                switch result {
+                case .success(let outputURL):
+                    let image = (try? Data(contentsOf: outputURL)).flatMap { UIImage(data: $0) }
+                    try? FileManager.default.removeItem(at: outputURL)
+                    if let image = image {
+                        print("✅ [Format Thumbnail] Generated via FFmpeg at \(capturePoint)s")
+                        continuation.resume(returning: image)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                case .failure(let error):
+                    print("❌ [Format Thumbnail] FFmpeg fallback failed: \(error.localizedDescription)")
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+    }
+
+    private func loadVideoMetadataFallback(for mediaItem: MediaItem, url: URL) async -> FFprobeVideoInfo? {
+        guard let info = await fetchFFprobeVideoInfo(url: url) else { return nil }
+        await MainActor.run {
+            if mediaItem.originalResolution == nil, let width = info.width, let height = info.height {
+                mediaItem.originalResolution = CGSize(width: width, height: height)
+            }
+            if (mediaItem.duration ?? 0) <= 0, let duration = info.duration {
+                mediaItem.duration = duration
+            }
+            if (mediaItem.frameRate ?? 0) <= 0, let fps = info.frameRate {
+                mediaItem.frameRate = fps
+            }
+        }
+        return info
+    }
+
+    private struct FFprobeVideoInfo {
+        let width: Int?
+        let height: Int?
+        let duration: Double?
+        let frameRate: Double?
+        let codec: String?
+    }
+
+    private func fetchFFprobeVideoInfo(url: URL) async -> FFprobeVideoInfo? {
+        return await withCheckedContinuation { (continuation: CheckedContinuation<FFprobeVideoInfo?, Never>) in
+            FFprobeKit.getMediaInformationAsync(url.path) { session in
+                guard let info = session?.getMediaInformation() else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                let duration = extractDuration(from: info)
+                var width: Int?
+                var height: Int?
+                var fps: Double?
+                var codec: String?
+
+                if let streams = info.getStreams() {
+                    for case let stream as StreamInformation in streams {
+                        guard (stream.getType()?.lowercased() ?? "") == "video" else { continue }
+
+                        if width == nil {
+                            if let value = stream.getWidth()?.intValue {
+                                width = value
+                            } else if let property = stream.getStringProperty(StreamKeyWidth), let value = Int(property) {
+                                width = value
+                            }
+                        }
+
+                        if height == nil {
+                            if let value = stream.getHeight()?.intValue {
+                                height = value
+                            } else if let property = stream.getStringProperty(StreamKeyHeight), let value = Int(property) {
+                                height = value
+                            }
+                        }
+
+                        if fps == nil {
+                            let frameRateCandidates: [String?] = [
+                                stream.getAverageFrameRate(),
+                                stream.getRealFrameRate(),
+                                stream.getStringProperty(StreamKeyAverageFrameRate),
+                                stream.getStringProperty(StreamKeyRealFrameRate)
+                            ]
+                            for candidate in frameRateCandidates {
+                                if let candidate,
+                                   let parsed = parseFrameRate(candidate),
+                                   parsed > 0 {
+                                    fps = parsed
+                                    break
+                                }
+                            }
+                        }
+
+                        if codec == nil {
+                            if let codecLong = stream.getCodecLong(), !codecLong.isEmpty {
+                                codec = codecLong
+                            } else if let codecShort = stream.getCodec(), !codecShort.isEmpty {
+                                codec = codecShort
+                            }
+                        }
+
+                        if width != nil && height != nil && fps != nil && codec != nil {
+                            break
+                        }
+                    }
+                }
+
+                continuation.resume(returning: FFprobeVideoInfo(
+                    width: width,
+                    height: height,
+                    duration: duration,
+                    frameRate: fps,
+                    codec: codec
+                ))
+            }
+        }
+    }
+
+    private func extractDuration(from info: MediaInformation) -> Double? {
+        var candidates: [String?] = [
+            info.getDuration(),
+            info.getStringProperty(MediaKeyDuration),
+            info.getStringFormatProperty(MediaKeyDuration)
+        ]
+
+        if let formatProperties = info.getFormatProperties() as? [String: Any] {
+            candidates.append(formatProperties[MediaKeyDuration] as? String)
+        }
+
+        if let allProperties = info.getAllProperties() as? [String: Any] {
+            if let formatDict = allProperties[MediaKeyFormat] as? [String: Any] {
+                candidates.append(formatDict[MediaKeyDuration] as? String)
+            }
+            if let mediaDict = allProperties["media"] as? [String: Any] {
+                candidates.append(mediaDict[MediaKeyDuration] as? String)
+            }
+            if let formatDict = allProperties["format"] as? [String: Any] {
+                candidates.append(formatDict["duration"] as? String)
+            }
+        }
+
+        for candidate in candidates {
+            if let seconds = parseDuration(candidate) {
+                return seconds
+            }
+        }
+        return nil
+    }
+
+    private func parseFrameRate(_ value: String) -> Double? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.uppercased() != "N/A" else { return nil }
+        if trimmed.contains("/") {
+            let parts = trimmed.split(separator: "/")
+            if parts.count == 2,
+               let numerator = Double(parts[0]),
+               let denominator = Double(parts[1]),
+               denominator != 0 {
+                return numerator / denominator
+            }
+            return nil
+        }
+        return Double(trimmed)
+    }
+
+    private func parseDuration(_ value: String?) -> Double? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.uppercased() != "N/A" else { return nil }
+
+        if trimmed.contains(":"), !trimmed.contains(" ") {
+            let parts = trimmed.split(separator: ":")
+            guard !parts.isEmpty else { return nil }
+            var total: Double = 0
+            for part in parts {
+                guard let number = Double(part) else { return nil }
+                total = total * 60 + number
+            }
+            return total
+        }
+
+        return Double(trimmed)
     }
 }
 

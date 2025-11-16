@@ -10,6 +10,7 @@ import PhotosUI
 import AVFoundation
 import Photos
 import SDWebImageWebPCoder
+import ffmpegkit
 
 extension NumberFormatter {
     static var noGrouping: NumberFormatter {
@@ -244,10 +245,25 @@ struct ResolutionView: View {
                 }
             }
         }
-        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 20, matching: .any(of: [.images, .videos]))
+        .photosPicker(
+            isPresented: $showingPhotoPicker,
+            selection: $selectedItems,
+            maxSelectionCount: 20,
+            matching: .any(of: [
+                .images,
+                UTType(filenameExtension: "mp4")!,
+                UTType(filenameExtension: "mov")!,
+                UTType(filenameExtension: "m4v")!
+            ])
+        )
         .fileImporter(
             isPresented: $showingFilePicker,
-            allowedContentTypes: [.image, .movie],
+            allowedContentTypes: [
+                .image,
+                UTType(filenameExtension: "mp4")!,
+                UTType(filenameExtension: "mov")!,
+                UTType(filenameExtension: "m4v")!
+            ],
             allowsMultipleSelection: true
         ) { result in
             Task {
@@ -566,17 +582,30 @@ struct ResolutionView: View {
         } catch {
             print("Failed to load video track info: \(error)")
         }
+
+        let needsFallback = {
+            let durationValid = (mediaItem.duration ?? 0) > 0
+            let resolutionValid = mediaItem.originalResolution != nil
+            return !durationValid || !resolutionValid
+        }()
+
+        var ffprobeInfo: FFprobeVideoInfo?
+        if needsFallback {
+            ffprobeInfo = await loadVideoMetadataFallback(for: mediaItem, url: url)
+        }
         
         // 检测视频编码（使用异步版本更可靠）
         if let codec = await MediaItem.detectVideoCodecAsync(from: url) {
             await MainActor.run {
-                mediaItem.videoCodec = codec
-                
-                // 检查编码格式是否支持（只支持 HEVC 和 H.264）
-                if codec != "HEVC" && codec != "H.264" && codec != "FMP4" {
-                    mediaItem.status = .failed
-                    mediaItem.errorMessage = "Unsupported video codec: \(codec). Only HEVC and H.264 are supported."
-                    return
+                applyDetectedCodec(codec, to: mediaItem)
+            }
+        } else {
+            if ffprobeInfo == nil {
+                ffprobeInfo = await loadVideoMetadataFallback(for: mediaItem, url: url)
+            }
+            if let fallbackCodec = ffprobeInfo?.codec, !fallbackCodec.isEmpty {
+                await MainActor.run {
+                    applyDetectedCodec(fallbackCodec, to: mediaItem)
                 }
             }
         }
@@ -590,6 +619,189 @@ struct ResolutionView: View {
             if mediaItem.status != .failed {
                 mediaItem.status = .pending
             }
+        }
+    }
+
+    private func loadVideoMetadataFallback(for mediaItem: MediaItem, url: URL) async -> FFprobeVideoInfo? {
+        guard let info = await fetchFFprobeVideoInfo(url: url) else { return nil }
+        await MainActor.run {
+            if mediaItem.originalResolution == nil, let width = info.width, let height = info.height {
+                mediaItem.originalResolution = CGSize(width: width, height: height)
+            }
+            if (mediaItem.duration ?? 0) <= 0, let duration = info.duration {
+                mediaItem.duration = duration
+            }
+        }
+        return info
+    }
+
+    private struct FFprobeVideoInfo {
+        let width: Int?
+        let height: Int?
+        let duration: Double?
+        let codec: String?
+    }
+
+    private func fetchFFprobeVideoInfo(url: URL) async -> FFprobeVideoInfo? {
+        return await withCheckedContinuation { (continuation: CheckedContinuation<FFprobeVideoInfo?, Never>) in
+            FFprobeKit.getMediaInformationAsync(url.path) { session in
+                guard let info = session?.getMediaInformation() else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+
+                let duration = extractDuration(from: info)
+                var width: Int?
+                var height: Int?
+                var codec: String?
+
+                if let streams = info.getStreams() {
+                    for case let stream as StreamInformation in streams {
+                        guard (stream.getType()?.lowercased() ?? "") == "video" else { continue }
+
+                        if width == nil {
+                            if let value = stream.getWidth()?.intValue {
+                                width = value
+                            } else if let property = stream.getStringProperty(StreamKeyWidth), let value = Int(property) {
+                                width = value
+                            }
+                        }
+
+                        if height == nil {
+                            if let value = stream.getHeight()?.intValue {
+                                height = value
+                            } else if let property = stream.getStringProperty(StreamKeyHeight), let value = Int(property) {
+                                height = value
+                            }
+                        }
+
+                        if codec == nil {
+                            if let codecLong = stream.getCodecLong(), !codecLong.isEmpty {
+                                codec = codecLong
+                            } else if let codecShort = stream.getCodec(), !codecShort.isEmpty {
+                                codec = codecShort
+                            }
+                        }
+
+                        if width != nil && height != nil && codec != nil {
+                            break
+                        }
+                    }
+                }
+
+                continuation.resume(returning: FFprobeVideoInfo(
+                    width: width,
+                    height: height,
+                    duration: duration,
+                    codec: codec
+                ))
+            }
+        }
+    }
+
+    private func extractDuration(from info: MediaInformation) -> Double? {
+        var candidates: [String?] = [
+            info.getDuration(),
+            info.getStringProperty(MediaKeyDuration),
+            info.getStringFormatProperty(MediaKeyDuration)
+        ]
+
+        if let formatProperties = info.getFormatProperties() as? [String: Any] {
+            candidates.append(formatProperties[MediaKeyDuration] as? String)
+        }
+
+        if let allProperties = info.getAllProperties() as? [String: Any] {
+            if let formatDict = allProperties[MediaKeyFormat] as? [String: Any] {
+                candidates.append(formatDict[MediaKeyDuration] as? String)
+            }
+            if let mediaDict = allProperties["media"] as? [String: Any] {
+                candidates.append(mediaDict[MediaKeyDuration] as? String)
+            }
+            if let formatDict = allProperties["format"] as? [String: Any] {
+                candidates.append(formatDict["duration"] as? String)
+            }
+        }
+
+        for candidate in candidates {
+            if let seconds = parseDuration(candidate) {
+                return seconds
+            }
+        }
+        return nil
+    }
+
+    private func parseDuration(_ value: String?) -> Double? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.uppercased() != "N/A" else { return nil }
+
+        if trimmed.contains(":"), !trimmed.contains(" ") {
+            let parts = trimmed.split(separator: ":")
+            guard !parts.isEmpty else { return nil }
+            var total: Double = 0
+            for part in parts {
+                guard let number = Double(part) else { return nil }
+                total = total * 60 + number
+            }
+            return total
+        }
+
+        return Double(trimmed)
+    }
+
+    private func normalizeCodecName(_ rawValue: String) -> String {
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return rawValue }
+
+        let lower = trimmed.lowercased()
+        let mapping: [(String, String)] = [
+            ("hevc", "HEVC"),
+            ("hvc1", "HEVC"),
+            ("hev1", "HEVC"),
+            ("h.265", "HEVC"),
+            ("h264", "H.264"),
+            ("avc", "H.264"),
+            ("x264", "H.264"),
+            ("vp9", "VP9"),
+            ("vp8", "VP8"),
+            ("av1", "AV1"),
+            ("mpeg-4", "MPEG-4"),
+            ("mpeg4", "MPEG-4"),
+            ("mpeg-2", "MPEG-2"),
+            ("mpeg2", "MPEG-2"),
+            ("dvhe", "DVHE"),
+            ("dvh1", "DVH1"),
+            ("dva1", "DVA1"),
+            ("prores", "ProRes"),
+            ("vp6", "VP6"),
+            ("theora", "Theora"),
+            ("wmv", "WMV"),
+            ("wmv3", "WMV"),
+            ("wmv2", "WMV"),
+            ("divx", "DivX"),
+            ("xvid", "Xvid")
+        ]
+
+        if let match = mapping.first(where: { lower.contains($0.0) }) {
+            return match.1
+        }
+
+        return trimmed
+    }
+
+    @MainActor
+    private func applyDetectedCodec(_ rawCodec: String?, to mediaItem: MediaItem) {
+        guard let rawCodec else { return }
+        let trimmed = rawCodec.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let normalized = normalizeCodecName(trimmed)
+        mediaItem.videoCodec = normalized
+
+        let supportedCodecs: Set<String> = ["HEVC", "H.264", "FMP4"]
+        if !supportedCodecs.contains(normalized) {
+            mediaItem.status = .failed
+            mediaItem.errorMessage = "Unsupported video codec: \(normalized). Only HEVC, H.264, or FMP4 are supported."
         }
     }
     
@@ -615,22 +827,73 @@ struct ResolutionView: View {
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
         generator.maximumSize = CGSize(width: 160, height: 160)
-        
+        generator.apertureMode = .encodedPixels
+
         // 优化：设置更快的缩略图生成选项
         generator.requestedTimeToleranceBefore = CMTime(seconds: 1, preferredTimescale: 600)
         generator.requestedTimeToleranceAfter = CMTime(seconds: 1, preferredTimescale: 600)
-        
-        do {
-            let cgImage = try await generator.image(at: CMTime(seconds: 1, preferredTimescale: 600)).image
-            let thumbnail = UIImage(cgImage: cgImage)
-            await MainActor.run {
-                item.thumbnailImage = thumbnail
+
+        let durationSeconds = CMTimeGetSeconds(asset.duration)
+        let candidateSeconds: [Double] = {
+            var seconds: [Double] = []
+            if durationSeconds > 0 {
+                let mid = max(0.1, durationSeconds / 2.0)
+                seconds.append(min(1.0, mid))
             }
-        } catch {
-            print("Failed to generate video thumbnail: \(error)")
-            // 设置默认视频图标
+            seconds.append(contentsOf: [0.5, 0.1, 0])
+            return Array(Set(seconds)).sorted(by: >)
+        }()
+
+        for second in candidateSeconds {
+            do {
+                let time = CMTime(seconds: second, preferredTimescale: 600)
+                let cgResult = try await generator.image(at: time)
+                let thumbnail = UIImage(cgImage: cgResult.image)
+                await MainActor.run {
+                    item.thumbnailImage = thumbnail
+                }
+                return
+            } catch {
+                print("⚠️ [Resolution Thumbnail] Failed at \(second)s: \(error.localizedDescription)")
+            }
+        }
+
+        if let fallbackImage = await generateVideoThumbnailViaFFmpeg(for: item, url: url, duration: durationSeconds) {
             await MainActor.run {
-                item.thumbnailImage = UIImage(systemName: "video.fill")
+                item.thumbnailImage = fallbackImage
+            }
+            return
+        }
+
+        await MainActor.run {
+            item.thumbnailImage = UIImage(systemName: "video.fill")
+        }
+    }
+
+    private func generateVideoThumbnailViaFFmpeg(for item: MediaItem, url: URL, duration: Double) async -> UIImage? {
+        let capturePoint: Double
+        if duration.isFinite && duration > 0.0 {
+            capturePoint = min(max(duration / 2.0, 0.1), 5.0)
+        } else {
+            capturePoint = 0.5
+        }
+
+        return await withCheckedContinuation { continuation in
+            FFmpegVideoCompressor.extractThumbnail(from: url, at: capturePoint) { result in
+                switch result {
+                case .success(let outputURL):
+                    let image = (try? Data(contentsOf: outputURL)).flatMap { UIImage(data: $0) }
+                    try? FileManager.default.removeItem(at: outputURL)
+                    if let image = image {
+                        print("✅ [Resolution Thumbnail] Generated via FFmpeg at \(capturePoint)s")
+                        continuation.resume(returning: image)
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
+                case .failure(let error):
+                    print("❌ [Resolution Thumbnail] FFmpeg fallback failed: \(error.localizedDescription)")
+                    continuation.resume(returning: nil)
+                }
             }
         }
     }
@@ -938,9 +1201,13 @@ struct ResolutionView: View {
         exportSession.shouldOptimizeForNetworkUse = true
         
         // 设置视频分辨率
-        if let (width, height) = getTargetSize() {
+        if let (width, height) = getTargetSize(), width > 0, height > 0 {
             let size = CGSize(width: width, height: height)
-            exportSession.videoComposition = createVideoComposition(asset: asset, targetSize: size, mode: settings.resizeMode)
+            if let composition = createVideoComposition(asset: asset, targetSize: size, mode: settings.resizeMode, fallbackResolution: item.originalResolution) {
+                exportSession.videoComposition = composition
+            } else {
+                print("⚠️ [Resolution Adjustment] Unable to build video composition for requested size. Using default export dimensions.")
+            }
         }
         
         let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { t in
@@ -988,9 +1255,10 @@ struct ResolutionView: View {
     }
     
     // 创建视频合成，实现智能缩放和裁剪
-    private func createVideoComposition(asset: AVAsset, targetSize: CGSize, mode: ResizeMode) -> AVMutableVideoComposition {
+    private func createVideoComposition(asset: AVAsset, targetSize: CGSize, mode: ResizeMode, fallbackResolution: CGSize?) -> AVMutableVideoComposition? {
+        guard targetSize.width > 0, targetSize.height > 0 else { return nil }
         guard let videoTrack = asset.tracks(withMediaType: .video).first else {
-            return AVMutableVideoComposition()
+            return nil
         }
         
         let composition = AVMutableVideoComposition()
@@ -1012,7 +1280,15 @@ struct ResolutionView: View {
         let videoSize = videoTrack.naturalSize
         let transform = videoTrack.preferredTransform
         let isPortrait = abs(transform.b) == 1.0 || abs(transform.c) == 1.0
-        let actualSize = isPortrait ? CGSize(width: videoSize.height, height: videoSize.width) : videoSize
+        var actualSize = isPortrait ? CGSize(width: videoSize.height, height: videoSize.width) : videoSize
+        if actualSize.width <= 0 || actualSize.height <= 0 {
+            if let fallback = fallbackResolution, fallback.width > 0, fallback.height > 0 {
+                actualSize = fallback
+            } else {
+                print("⚠️ [Resolution Adjustment] Source video reported invalid size: \(actualSize)")
+                return nil
+            }
+        }
         
         // 计算宽高比
         let targetAspectRatio = targetSize.width / targetSize.height
@@ -1039,7 +1315,10 @@ struct ResolutionView: View {
             finalRenderSize = targetSize
             
             // 计算缩放后的尺寸
-            let scaledSize = CGSize(width: actualSize.width * scale, height: actualSize.height * scale)
+            let scaledSize = CGSize(
+                width: max(actualSize.width * scale, 1),
+                height: max(actualSize.height * scale, 1)
+            )
             
             // 计算居中偏移
             tx = (targetSize.width - scaledSize.width) / 2
@@ -1056,7 +1335,10 @@ struct ResolutionView: View {
             }
             
             // Fit 模式输出实际缩放后的尺寸（不超过目标尺寸）
-            let scaledSize = CGSize(width: actualSize.width * scale, height: actualSize.height * scale)
+            let scaledSize = CGSize(
+                width: max(actualSize.width * scale, 1),
+                height: max(actualSize.height * scale, 1)
+            )
             finalRenderSize = scaledSize
             
             // Fit 模式不需要偏移，因为输出尺寸就是缩放后的尺寸
@@ -1065,6 +1347,11 @@ struct ResolutionView: View {
         }
         
         // 设置最终输出尺寸
+        guard finalRenderSize.width > 0, finalRenderSize.height > 0 else {
+            print("⚠️ [Resolution Adjustment] Computed render size invalid: \(finalRenderSize)")
+            return nil
+        }
+
         composition.renderSize = finalRenderSize
         
         // 构建变换矩阵
@@ -1095,7 +1382,9 @@ struct ResolutionView: View {
     
     private func getTargetSize() -> (Int, Int)? {
         if settings.targetResolution == .custom {
-            return (settings.customWidth, settings.customHeight)
+            let width = max(settings.customWidth, 0)
+            let height = max(settings.customHeight, 0)
+            return (width, height)
         } else if let size = settings.targetResolution.size {
             return (size.width, size.height)
         }
