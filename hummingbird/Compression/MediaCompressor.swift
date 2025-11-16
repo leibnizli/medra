@@ -191,6 +191,9 @@ final class MediaCompressor {
         let originalSize = image.size
         print("📐 [Image] Original size: \(Int(originalSize.width))×\(Int(originalSize.height))")
         
+        // 标记是否调整了分辨率
+        var resolutionChanged = false
+        
         // Resolution scaling - only scale down if target is smaller than original
         if let targetSize = settings.targetImageResolution.size(for: settings.targetImageOrientationMode, originalSize: originalSize) {
             let originalWidth = originalSize.width
@@ -218,6 +221,7 @@ final class MediaCompressor {
                 
                 // Resize image
                 image = resizeImage(image, targetSize: newSize)
+                resolutionChanged = true
             } else {
                 print("📐 [Image] Keeping original resolution (target: \(Int(targetWidth))×\(Int(targetHeight)))")
             }
@@ -241,7 +245,7 @@ final class MediaCompressor {
         
         // For PNG, pass original data to avoid re-encoding
         let originalPNGData = (format == .png) ? data : nil
-        return await encode(image: image, quality: quality, format: format, settings: settings, originalPNGData: originalPNGData, progressHandler: progressHandler)
+        return await encode(image: image, quality: quality, format: format, settings: settings, originalPNGData: originalPNGData, resolutionChanged: resolutionChanged, progressHandler: progressHandler)
     }
     
     static func detectImageFormat(data: Data) -> ImageFormat {
@@ -377,7 +381,7 @@ final class MediaCompressor {
         }
     }
     
-    static func encode(image: UIImage, quality: CGFloat, format: ImageFormat, settings: CompressionSettings, originalPNGData: Data? = nil, progressHandler: ((Float) -> Void)? = nil) async -> Data {
+    static func encode(image: UIImage, quality: CGFloat, format: ImageFormat, settings: CompressionSettings, originalPNGData: Data? = nil, resolutionChanged: Bool = false, progressHandler: ((Float) -> Void)? = nil) async -> Data {
         switch format {
         case .webp:
             progressHandler?(0.3)
@@ -405,11 +409,21 @@ final class MediaCompressor {
             }
             
         case .png:
-            // PNG 使用自定义压缩器 — 如果有原始 PNG data，直接用，不要重新编码
+            // PNG 使用自定义压缩器
             print("🔄 [PNG] 使用颜色量化压缩")
             progressHandler?(0.3)
             
-            let pngDataToCompress = originalPNGData ?? image.pngData() ?? Data()
+            // 如果调整了分辨率，必须重新编码；否则使用原始 PNG 数据
+            let pngDataToCompress: Data
+            if resolutionChanged {
+                print("📐 [PNG] 分辨率已调整，重新编码 PNG")
+                pngDataToCompress = image.pngData() ?? Data()
+            } else if let originalPNGData = originalPNGData {
+                print("📐 [PNG] 分辨率未变，使用原始 PNG 数据")
+                pngDataToCompress = originalPNGData
+            } else {
+                pngDataToCompress = image.pngData() ?? Data()
+            }
             
             if let result = await PNGCompressor.compressWithOriginalData(
                 pngData: pngDataToCompress,
