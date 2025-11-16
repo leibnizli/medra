@@ -245,25 +245,10 @@ struct ResolutionView: View {
                 }
             }
         }
-        .photosPicker(
-            isPresented: $showingPhotoPicker,
-            selection: $selectedItems,
-            maxSelectionCount: 20,
-            matching: .any(of: [
-                .images,
-                UTType(filenameExtension: "mp4")!,
-                UTType(filenameExtension: "mov")!,
-                UTType(filenameExtension: "m4v")!
-            ])
-        )
+        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 20, matching: .any(of: [.images, .videos]))
         .fileImporter(
             isPresented: $showingFilePicker,
-            allowedContentTypes: [
-                .image,
-                UTType(filenameExtension: "mp4")!,
-                UTType(filenameExtension: "mov")!,
-                UTType(filenameExtension: "m4v")!
-            ],
+            allowedContentTypes: [.image, .movie],
             allowsMultipleSelection: true
         ) { result in
             Task {

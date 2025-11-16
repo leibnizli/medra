@@ -163,25 +163,8 @@ struct VideoFormatConversionView: View {
         }
         .navigationTitle("Video Format")
         .navigationBarTitleDisplayMode(.inline)
-        .photosPicker(
-            isPresented: $showingPhotoPicker,
-            selection: $selectedItems,
-            maxSelectionCount: 20,
-            matching: .any(of: [
-                UTType(filenameExtension: "mp4")!,
-                UTType(filenameExtension: "mov")!,
-                UTType(filenameExtension: "m4v")!
-            ])
-        )
-        .fileImporter(
-            isPresented: $showingFilePicker,
-            allowedContentTypes: [
-                UTType(filenameExtension: "mp4")!,
-                UTType(filenameExtension: "mov")!,
-                UTType(filenameExtension: "m4v")!
-            ],
-            allowsMultipleSelection: true
-        ) { result in
+        .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedItems, maxSelectionCount: 20, matching: .videos)
+        .fileImporter(isPresented: $showingFilePicker, allowedContentTypes: [.movie, .video], allowsMultipleSelection: true) { result in
             do {
                 let urls = try result.get()
                 Task {
