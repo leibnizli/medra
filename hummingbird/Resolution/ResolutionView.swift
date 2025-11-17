@@ -9,6 +9,8 @@ import SwiftUI
 import PhotosUI
 import AVFoundation
 import Photos
+import UniformTypeIdentifiers
+import SDWebImage
 import SDWebImageWebPCoder
 import ffmpegkit
 
@@ -292,42 +294,57 @@ struct ResolutionView: View {
                 // 读取文件数据
                 let data = try Data(contentsOf: url)
                 
+                let fileExtension = url.pathExtension.lowercased()
+                let avifType = UTType(filenameExtension: "avif")
+                let webpType = UTType(filenameExtension: "webp")
+                let type = UTType(filenameExtension: url.pathExtension)
+                let normalizedExtension = type?.preferredFilenameExtension?.lowercased() ?? fileExtension
+                let isAnimatedAVIF = MediaCompressor.isAnimatedAVIF(data: data)
+                var detectedFormat: ImageFormat?
+                var detectedExtension = normalizedExtension
+
+                if let type {
+                    if type.conforms(to: .png) {
+                        detectedFormat = .png
+                        detectedExtension = "png"
+                    } else if type.conforms(to: .heic) {
+                        detectedFormat = .heic
+                        detectedExtension = "heic"
+                    } else if let webpType, type.conforms(to: webpType) {
+                        detectedFormat = .webp
+                        detectedExtension = "webp"
+                    } else if let avifType, type.conforms(to: avifType) {
+                        detectedFormat = .avif
+                        detectedExtension = "avif"
+                    } else if type.conforms(to: .jpeg) {
+                        detectedFormat = .jpeg
+                        detectedExtension = "jpg"
+                    }
+                }
+
                 await MainActor.run {
                     mediaItem.originalData = data
                     mediaItem.originalSize = data.count
+                    mediaItem.fileExtension = normalizedExtension
                     
-                    // 使用 UTType 获取更准确的扩展名
-                    if let type = UTType(filenameExtension: url.pathExtension) {
-                        mediaItem.fileExtension = type.preferredFilenameExtension?.lowercased() ?? url.pathExtension.lowercased()
-                        
-                        // 设置格式
-                        if isVideo {
-                            mediaItem.outputVideoFormat = type.preferredFilenameExtension?.lowercased() ?? url.pathExtension.lowercased()
-                        } else {
-                            if type.conforms(to: .png) {
-                                mediaItem.originalImageFormat = .png
-                            } else if type.conforms(to: .heic) {
-                                mediaItem.originalImageFormat = .heic
-                            } else if type.conforms(to: .webP) {
-                                mediaItem.originalImageFormat = .webp
-                            } else {
-                                mediaItem.originalImageFormat = .jpeg
-                            }
-                        }
-                    } else {
-                        // 回退到文件扩展名
-                        mediaItem.fileExtension = url.pathExtension.lowercased()
-                        if isVideo {
-                            mediaItem.outputVideoFormat = url.pathExtension.lowercased()
-                        }
+                    if isVideo {
+                        mediaItem.outputVideoFormat = normalizedExtension
+                    } else if let detectedFormat {
+                        mediaItem.originalImageFormat = detectedFormat
+                        mediaItem.fileExtension = detectedExtension
                     }
-                    
-                    // 如果是图片，生成缩略图和获取分辨率
+
                     if !isVideo, let image = UIImage(data: data) {
                         mediaItem.thumbnailImage = generateThumbnail(from: image)
                         mediaItem.originalResolution = image.size
                         mediaItem.status = .pending
                     }
+                    
+                    mediaItem.isAnimatedAVIF = isAnimatedAVIF
+                }
+
+                if !isVideo {
+                    await detectAnimationMetadata(for: mediaItem, data: data, format: detectedFormat, prefetchedAVIFFlag: isAnimatedAVIF)
                 }
                 
                 // 如果是视频，处理视频相关信息
@@ -387,39 +404,45 @@ struct ResolutionView: View {
     
     private func loadImageItem(_ item: PhotosPickerItem, _ mediaItem: MediaItem) async {
         if let data = try? await item.loadTransferable(type: Data.self) {
+            let avifType = UTType(filenameExtension: "avif")
+            var detectedImageFormat: ImageFormat = .jpeg
+            var detectedExtension = "jpg"
+            
+            for contentType in item.supportedContentTypes {
+                if contentType.identifier == "public.png" ||
+                    contentType.conforms(to: .png) {
+                    detectedImageFormat = .png
+                    detectedExtension = "png"
+                    break
+                } else if contentType.identifier == "public.heic" ||
+                            contentType.identifier == "public.heif" ||
+                            contentType.conforms(to: .heic) ||
+                            contentType.conforms(to: .heif) {
+                    detectedImageFormat = .heic
+                    detectedExtension = "heic"
+                    break
+                } else if contentType.identifier == "org.webmproject.webp" ||
+                            contentType.preferredMIMEType == "image/webp" {
+                    detectedImageFormat = .webp
+                    detectedExtension = "webp"
+                    break
+                } else if let avifType, contentType.conforms(to: avifType) ||
+                            contentType.identifier == "public.avif" ||
+                            contentType.identifier == "public.avci" ||
+                            contentType.preferredMIMEType == "image/avif" {
+                    detectedImageFormat = .avif
+                    detectedExtension = "avif"
+                    break
+                } else if contentType.conforms(to: .jpeg) {
+                    detectedImageFormat = .jpeg
+                    detectedExtension = "jpg"
+                    break
+                }
+            }
+            
             await MainActor.run {
                 mediaItem.originalData = data
                 mediaItem.originalSize = data.count
-                
-                // 检测原始图片格式（与 CompressionView 保持一致）
-                var detectedImageFormat: ImageFormat = .jpeg
-                var detectedExtension = "jpg"
-                
-                for contentType in item.supportedContentTypes {
-                    if contentType.identifier == "public.png" ||
-                       contentType.conforms(to: .png) {
-                        detectedImageFormat = .png
-                        detectedExtension = "png"
-                        break
-                    } else if contentType.identifier == "public.heic" || 
-                              contentType.identifier == "public.heif" ||
-                              contentType.conforms(to: .heic) ||
-                              contentType.conforms(to: .heif) {
-                        detectedImageFormat = .heic
-                        detectedExtension = "heic"
-                        break
-                    } else if contentType.identifier == "org.webmproject.webp" ||
-                              contentType.preferredMIMEType == "image/webp" {
-                        detectedImageFormat = .webp
-                        detectedExtension = "webp"
-                        break
-                    } else if contentType.conforms(to: .jpeg) {
-                        detectedImageFormat = .jpeg
-                        detectedExtension = "jpg"
-                        break
-                    }
-                }
-                
                 mediaItem.originalImageFormat = detectedImageFormat
                 mediaItem.fileExtension = detectedExtension
                 
@@ -430,6 +453,67 @@ struct ResolutionView: View {
                 
                 // 加载完成，设置为等待状态
                 mediaItem.status = .pending
+            }
+            
+            await detectAnimationMetadata(for: mediaItem, data: data, format: detectedImageFormat, prefetchedAVIFFlag: nil)
+        }
+    }
+
+    private func detectAnimationMetadata(
+        for mediaItem: MediaItem,
+        data: Data,
+        format: ImageFormat?,
+        prefetchedAVIFFlag: Bool?
+    ) async {
+        let shouldCheckWebP: Bool = {
+            if format == .webp { return true }
+            if data.count >= 12 {
+                let bytes = [UInt8](data.prefix(12))
+                return bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46 &&
+                       bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50
+            }
+            return false
+        }()
+        let avifFlag = prefetchedAVIFFlag ?? (format == .avif ? MediaCompressor.isAnimatedAVIF(data: data) : false)
+
+        if avifFlag {
+            await MainActor.run {
+                mediaItem.isAnimatedAVIF = true
+                mediaItem.avifFrameCount = 0
+            }
+            Task {
+                let frames = await AVIFCompressor.detectFrameCount(avifData: data)
+                await MainActor.run {
+                    mediaItem.avifFrameCount = frames
+                }
+            }
+        }
+
+        guard shouldCheckWebP else { return }
+
+        var hasAnimationFlag = false
+        let headerBytes = [UInt8](data.prefix(30))
+        if headerBytes.count >= 21 &&
+            headerBytes[12] == 0x56 && headerBytes[13] == 0x50 &&
+            headerBytes[14] == 0x38 && headerBytes[15] == 0x58 {
+            let flags = headerBytes[20]
+            hasAnimationFlag = (flags & 0x02) != 0
+        }
+
+        if hasAnimationFlag {
+            await MainActor.run {
+                mediaItem.isAnimatedWebP = true
+                mediaItem.webpFrameCount = 0
+            }
+        }
+
+        Task {
+            if let animatedImage = SDAnimatedImage(data: data) {
+                let count = animatedImage.animatedImageFrameCount
+                await MainActor.run {
+                    mediaItem.isAnimatedWebP = count > 1
+                    mediaItem.webpFrameCount = Int(count)
+                }
             }
         }
     }
