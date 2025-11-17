@@ -256,7 +256,7 @@ Uses Zopfli - Copyright (c) Google Inc. Apache License 2.0.
 - Optimized memory usage
 - Fast compression speed
 
-### ��️ Safe and Reliable
+### 🛡️ Safe and Reliable
 
 - Local processing, no uploads
 - Auto cleanup temporary files

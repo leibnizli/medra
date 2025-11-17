@@ -128,3 +128,6 @@ Temporary Items
 *.bak
 *.backup
 
+*.md
+!README.md
+
