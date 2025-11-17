@@ -799,7 +799,7 @@ struct CompressionItemRow: View {
                 fileExtension = "jpg"
             }
             
-            let fileName = "hummingbird_\(Date().timeIntervalSince1970).\(fileExtension)"
+            let fileName = "compressed_\(Date().timeIntervalSince1970).\(fileExtension)"
             let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName)
             
             do {
@@ -889,7 +889,7 @@ struct CompressionItemRow: View {
                 fileExtension = "jpg"
             }
             
-            let fileName = "hummingbird_\(Date().timeIntervalSince1970).\(fileExtension)"
+            let fileName = "compressed_\(Date().timeIntervalSince1970).\(fileExtension)"
             let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName)
             
             do {

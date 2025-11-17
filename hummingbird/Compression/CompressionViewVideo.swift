@@ -295,41 +295,6 @@ struct CompressionViewVideo: View {
                 mediaItem.originalData = data
                 mediaItem.originalSize = data.count
                 
-                // 检测原始图片格式
-                let isPNG = item.supportedContentTypes.contains { contentType in
-                    contentType.identifier == "public.png" ||
-                    contentType.conforms(to: .png)
-                }
-                let isHEIC = item.supportedContentTypes.contains { contentType in
-                    contentType.identifier == "public.heic" || 
-                    contentType.identifier == "public.heif" ||
-                    contentType.conforms(to: .heic) ||
-                    contentType.conforms(to: .heif)
-                }
-                let isWebP = item.supportedContentTypes.contains { contentType in
-                    contentType.identifier == "org.webmproject.webp" ||
-                    contentType.preferredMIMEType == "image/webp"
-                }
-                
-                if isPNG {
-                    mediaItem.originalImageFormat = .png
-                    mediaItem.fileExtension = "png"
-                } else if isHEIC {
-                    mediaItem.originalImageFormat = .heic
-                    mediaItem.fileExtension = "heic"
-                } else if isWebP {
-                    mediaItem.originalImageFormat = .webp
-                    mediaItem.fileExtension = "webp"
-                } else {
-                    mediaItem.originalImageFormat = .jpeg
-                    mediaItem.fileExtension = "jpg"
-                }
-                
-                if let image = UIImage(data: data) {
-                    mediaItem.thumbnailImage = generateThumbnail(from: image)
-                    mediaItem.originalResolution = image.size
-                }
-                
                 // 加载完成，设置为等待状态
                 mediaItem.status = .pending
             }

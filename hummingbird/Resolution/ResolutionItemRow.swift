@@ -288,7 +288,7 @@ struct ResolutionItemRow: View {
                 fileExtension = "jpg"
             }
             
-            let fileName = "hummingbird_\(Date().timeIntervalSince1970).\(fileExtension)"
+            let fileName = "resized_\(Date().timeIntervalSince1970).\(fileExtension)"
             let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName)
             
             do {
@@ -380,7 +380,7 @@ struct ResolutionItemRow: View {
                 fileExtension = "jpg"
             }
             
-            let fileName = "hummingbird_\(Date().timeIntervalSince1970).\(fileExtension)"
+            let fileName = "resized_\(Date().timeIntervalSince1970).\(fileExtension)"
             let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName)
             
             do {

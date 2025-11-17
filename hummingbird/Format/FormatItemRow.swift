@@ -659,7 +659,7 @@ struct FormatItemRow: View {
                     fileExtension = "jpg"
                 }
                 
-                let fileName = "hummingbird_\(Date().timeIntervalSince1970).\(fileExtension)"
+                let fileName = "converted_\(Date().timeIntervalSince1970).\(fileExtension)"
                 let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName)
                 
                 do {
@@ -751,7 +751,7 @@ struct FormatItemRow: View {
                     fileExtension = "jpg"
                 }
                 
-                let fileName = "hummingbird_\(Date().timeIntervalSince1970).\(fileExtension)"
+                let fileName = "converted_\(Date().timeIntervalSince1970).\(fileExtension)"
                 let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(fileName)
                 
                 do {
