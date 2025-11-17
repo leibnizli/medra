@@ -2,6 +2,8 @@
 
 A clean and efficient iOS app for compressing images, videos, and audio files. Extensive customization options to meet your personalized needs. Runs locally without network, protecting your privacy and security.
 
+[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/id6755109910)
+
 ## Core Features
 
 - Support batch selection of images, videos, and audio (up to 20 files)
