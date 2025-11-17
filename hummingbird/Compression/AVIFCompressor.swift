@@ -7,6 +7,8 @@
 
 import Foundation
 import UIKit
+import UniformTypeIdentifiers
+import ImageIO
 import ffmpegkit
 
 struct AVIFCompressionResult {
@@ -33,7 +35,7 @@ struct AVIFCompressor {
         
         progressHandler?(0.05)
         
-        // Get PNG representation of source image (preserve alpha)
+        // Get PNG representation of source image (preserve alpha) for size tracking / ffmpeg fallback
         guard let sourceData = image.pngData() else {
             print("❌ [AVIF] Failed to get PNG data from source image")
             return nil
@@ -41,7 +43,12 @@ struct AVIFCompressor {
         
         let originalSize = sourceData.count
         
-        // Create temporary files
+        // Prefer native ImageIO encoder when available (iOS 16+)
+        if let imageIOResult = encodeUsingImageIO(image: image, quality: quality, originalSize: originalSize) {
+            return imageIOResult
+        }
+        
+        // Create temporary files for FFmpeg fallback
         let tempDir = FileManager.default.temporaryDirectory
         let inputURL = tempDir.appendingPathComponent(UUID().uuidString + ".png")
         let outputURL = tempDir.appendingPathComponent(UUID().uuidString + ".avif")
@@ -72,7 +79,7 @@ struct AVIFCompressor {
         -c:v libaom-av1 \
         -crf \(crf) \
         -cpu-used \(cpuUsed) \
-        -still-picture 1 \
+        -frames:v 1 \
         -pix_fmt yuv420p \
         "\(outputURL.path)"
         """
@@ -255,5 +262,64 @@ struct AVIFCompressor {
             return count
         }
         return 0
+    }
+
+    private static func encodeUsingImageIO(image: UIImage, quality: Double, originalSize: Int) -> AVIFCompressionResult? {
+        guard let avifUTI = avifTypeIdentifier() else {
+            return nil
+        }
+        guard let cgImage = createCGImage(from: image.fixOrientation()) else {
+            print("⚠️ [AVIF] Unable to create CGImage for ImageIO encoder")
+            return nil
+        }
+        let destinationData = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(destinationData, avifUTI, 1, nil) else {
+            return nil
+        }
+        let normalizedQuality = max(0.1, min(1.0, quality))
+        let options: [CFString: Any] = [
+            kCGImageDestinationLossyCompressionQuality: normalizedQuality
+        ]
+        CGImageDestinationAddImage(destination, cgImage, options as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            print("⚠️ [AVIF] ImageIO encoder finalize failed")
+            return nil
+        }
+        let compressedData = destinationData as Data
+        return AVIFCompressionResult(
+            data: compressedData,
+            originalSize: originalSize,
+            compressedSize: compressedData.count
+        )
+    }
+    
+    private static func avifTypeIdentifier() -> CFString? {
+        if #available(iOS 14.0, *) {
+            let candidates: [UTType?] = [
+                UTType(filenameExtension: "avif"),
+                UTType(importedAs: "public.avif"),
+                UTType(importedAs: "public.avci")
+            ]
+            if let resolved = candidates.compactMap({ $0 }).first {
+                return resolved.identifier as CFString
+            }
+        }
+        return "public.avif" as CFString
+    }
+    
+    private static func createCGImage(from image: UIImage) -> CGImage? {
+        if let cg = image.cgImage {
+            return cg
+        }
+        if let ciImage = image.ciImage {
+            let context = CIContext(options: nil)
+            return context.createCGImage(ciImage, from: ciImage.extent)
+        }
+        let size = image.size
+        UIGraphicsBeginImageContextWithOptions(size, false, image.scale)
+        image.draw(in: CGRect(origin: .zero, size: size))
+        let rendered = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return rendered?.cgImage
     }
 }
