@@ -619,9 +619,14 @@ class CompressionSettings: ObservableObject {
         
         // Video codec
         command += " -c:v \(effectiveCodec.ffmpegCodec)"
+
+        // Debug: log inputs relevant to frame rate decisions
+        print("🔍 [FFmpeg Debug] input=\(inputPath), output=\(outputPath), originalFrameRate=\(String(describing: originalFrameRate)), frameRateMode=\(frameRateMode.rawValue), customFrameRate=\(customFrameRate)")
+        print("🔍 [FFmpeg Debug] effectiveCodec=\(effectiveCodec.ffmpegCodec), useAutoBitrate=\(useAutoBitrate)")
         
         // Quality control: VideoToolbox uses bitrate parameters while software encoders keep preset/CRF
-        let codecIdentifier = effectiveCodec.ffmpegCodec.lowercased()
+        let codecIdentifier 
+        = effectiveCodec.ffmpegCodec.lowercased()
         if codecIdentifier.contains("videotoolbox") {
             let targetKbps = getVideoBitrate(targetSize: resolvedTargetSize, originalSize: videoSize)
             let maxrate = Int(Double(targetKbps) * 1.2)
@@ -671,17 +676,19 @@ class CompressionSettings: ObservableObject {
         
         // Frame rate control - only reduce frame rate if needed
         let targetFPS = getTargetFrameRate()
+        print("🔍 [FFmpeg Debug] Calculated targetFPS=\(targetFPS)")
         if let originalFPS = originalFrameRate {
+            print("🔍 [FFmpeg Debug] originalFPS=\(originalFPS) (provided)")
             if targetFPS < originalFPS {
                 command += " -r \(targetFPS)"
                 print("🎬 [FFmpeg] Reducing frame rate from \(originalFPS) fps to \(targetFPS) fps")
             } else {
-                print("🎬 [FFmpeg] Keeping original frame rate \(originalFPS) fps")
+                print("🎬 [FFmpeg] Keeping original frame rate \(originalFPS) fps (target >= original)")
             }
         } else {
             // No original frame rate info, apply target unconditionally
             command += " -r \(targetFPS)"
-            print("🎬 [FFmpeg] Setting frame rate to \(targetFPS) fps")
+            print("🎬 [FFmpeg] Setting frame rate to \(targetFPS) fps (original unknown)")
         }
         
         // Audio encoding
@@ -708,7 +715,10 @@ class CompressionSettings: ObservableObject {
         
         // Output file
         command += " \"\(outputPath)\""
-        
+
+        // Debug: print final command to help diagnose why output fps differs
+        print("🔍 [FFmpeg Debug] Final command: \(command)")
+
         return command
     }
 }
