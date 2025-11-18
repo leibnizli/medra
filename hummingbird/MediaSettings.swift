@@ -638,6 +638,10 @@ class CompressionSettings: ObservableObject {
             command += " -crf \(crfValue)"
         }
         
+        // Collect video filters
+        var vfParts: [String] = []
+        var scaleInfo: (width: Int, height: Int)? = nil
+        
         // Resolution scaling - only scale down if target is smaller than original
         if let originalSize = videoSize, let targetSize = resolvedTargetSize {
             let originalWidth = originalSize.width
@@ -667,28 +671,58 @@ class CompressionSettings: ObservableObject {
                 let evenWidth = (newWidth / 2) * 2
                 let evenHeight = (newHeight / 2) * 2
                 
-                command += " -vf scale=\(evenWidth):\(evenHeight)"
+                vfParts.append("scale=\(evenWidth):\(evenHeight)")
+                scaleInfo = (evenWidth, evenHeight)
                 print("🎬 [FFmpeg] Scaling video from \(Int(originalWidth))×\(Int(originalHeight)) to \(evenWidth)×\(evenHeight)")
             } else {
                 print("🎬 [FFmpeg] Keeping original resolution \(Int(originalWidth))×\(Int(originalHeight)) (target: \(Int(targetWidth))×\(Int(targetHeight)))")
             }
         }
         
-        // Frame rate control - only reduce frame rate if needed
+        // Frame rate control - smart CFR decision
         let targetFPS = getTargetFrameRate()
         print("🔍 [FFmpeg Debug] Calculated targetFPS=\(targetFPS)")
+        
+        var shouldForceCFR = false
+        var cfrReason = ""
+        
         if let originalFPS = originalFrameRate {
             print("🔍 [FFmpeg Debug] originalFPS=\(originalFPS) (provided)")
-            if targetFPS < originalFPS {
-                command += " -r \(targetFPS)"
-                print("🎬 [FFmpeg] Reducing frame rate from \(originalFPS) fps to \(targetFPS) fps")
+            
+            // Calculate difference percentage
+            let fpsDiff = abs(targetFPS - originalFPS)
+            let diffPercent = (fpsDiff / originalFPS) * 100.0
+            
+            print("🔍 [FFmpeg Debug] FPS difference: \(String(format: "%.2f", fpsDiff)) fps (\(String(format: "%.1f", diffPercent))%)")
+            
+            // Force CFR if difference is > 5%
+            if diffPercent > 5.0 {
+                shouldForceCFR = true
+                cfrReason = "FPS差异>5% (\(String(format: "%.1f", diffPercent))%)"
+                print("🎬 [FFmpeg] Will force CFR: target \(targetFPS) fps differs significantly from original \(originalFPS) fps")
             } else {
-                print("🎬 [FFmpeg] Keeping original frame rate \(originalFPS) fps (target >= original)")
+                print("🎬 [FFmpeg] Keeping original frame rate \(originalFPS) fps (difference \(String(format: "%.1f", diffPercent))% < 5%)")
             }
         } else {
-            // No original frame rate info, apply target unconditionally
-            command += " -r \(targetFPS)"
-            print("🎬 [FFmpeg] Setting frame rate to \(targetFPS) fps (original unknown)")
+            // No original frame rate info - be conservative, don't force CFR
+            print("🎬 [FFmpeg] Original frame rate unknown, will not force CFR (保守策略)")
+        }
+        
+        // Apply frame rate control
+        if shouldForceCFR {
+            // Use fps filter for reliable CFR output
+            vfParts.insert("fps=\(targetFPS)", at: 0)
+            print("✅ [FFmpeg] Forcing CFR with fps filter: \(targetFPS) fps (原因: \(cfrReason))")
+        }
+        
+        // Build final -vf command if we have filters
+        if !vfParts.isEmpty {
+            command += " -vf \"\(vfParts.joined(separator: ","))\""
+        }
+        
+        // Add fps_mode if forcing CFR (replaces deprecated -vsync)
+        if shouldForceCFR {
+            command += " -fps_mode cfr"
         }
         
         // Audio encoding
