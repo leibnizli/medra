@@ -53,9 +53,9 @@ struct CompressionSettingsViewImage: View {
                         }
                     }
                     
-                    // MARK: - JPEG / HEIC / WebP / AVIF (Image category)
+                    // MARK: - HEIC (.heic / .heif)
                     Section {
-                        Toggle("Prefer HEIC", isOn: $settings.preferHEIC)
+                        Toggle("Prefer HEIC (.heic / .heif)", isOn: $settings.preferHEIC)
                         
                         if settings.preferHEIC {
                             VStack(alignment: .leading, spacing: 8) {
@@ -68,7 +68,14 @@ struct CompressionSettingsViewImage: View {
                                 Slider(value: $settings.heicQuality, in: 0.1...1.0, step: 0.05)
                             }
                         }
-                        
+                    } header: {
+                        Text("HEIC (.heic, .heif)")
+                    } footer: {
+                        Text("When enabled, HEIC/HEIF images keep their original format. When disabled, they will be converted to JPEG using MozJPEG.")
+                    }
+                    
+                    // MARK: - JPEG (.jpg / .jpeg)
+                    Section {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text("JPEG Quality")
@@ -78,7 +85,12 @@ struct CompressionSettingsViewImage: View {
                             }
                             Slider(value: $settings.jpegQuality, in: 0.1...1.0, step: 0.05)
                         }
-                        
+                    } header: {
+                        Text("JPEG (.jpg, .jpeg)")
+                    }
+                    
+                    // MARK: - WebP (.webp)
+                    Section {
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text("WebP Quality")
@@ -89,6 +101,25 @@ struct CompressionSettingsViewImage: View {
                             Slider(value: $settings.webpQuality, in: 0.1...1.0, step: 0.05)
                         }
                         
+                        VStack(alignment: .leading, spacing: 6) {
+                            Toggle("Preserve Animated WebP", isOn: $settings.preserveAnimatedWebP)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("When enabled, animated WebP files will be compressed while preserving all frames. When disabled, only the first frame will be kept (converted to static image).")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                
+                                Text("Note: If the original is already highly optimized (lossless format), compression may result in a larger file size. In such cases, the original file will be automatically preserved.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                    } header: {
+                        Text("WebP (.webp)")
+                    }
+                    
+                    // MARK: - AVIF (.avif / .avci)
+                    Section {
                         // AVIF (still image) settings
                         VStack(alignment: .leading, spacing: 10) {
                             VStack(alignment: .leading, spacing: 8) {
@@ -128,21 +159,6 @@ struct CompressionSettingsViewImage: View {
                                 .foregroundStyle(.secondary)
                         }
                         
-                        // Animated formats (WebP / AVIF) category
-                        VStack(alignment: .leading, spacing: 6) {
-                            Toggle("Preserve Animated WebP", isOn: $settings.preserveAnimatedWebP)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("When enabled, animated WebP files will be compressed while preserving all frames. When disabled, only the first frame will be kept (converted to static image).")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                
-                                Text("Note: If the original is already highly optimized (lossless format), compression may result in a larger file size. In such cases, the original file will be automatically preserved.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.orange)
-                            }
-                        }
-                        
                         VStack(alignment: .leading, spacing: 6) {
                             Toggle("Preserve Animated AVIF", isOn: $settings.preserveAnimatedAVIF)
                             
@@ -156,9 +172,9 @@ struct CompressionSettingsViewImage: View {
                             }
                         }
                     } header: {
-                        Text("Quality Settings")
+                        Text("AVIF (.avif, .avci)")
                     } footer: {
-                        Text("Higher quality means larger file size. When HEIC is enabled, HEIC images will keep HEIC format; when disabled, MozJPEG will convert to JPEG format. WebP and AVIF formats will be compressed in original format. If compressed file is larger than original, the original will be kept automatically.")
+                        Text("Higher AVIF quality produces larger files. If the encoded AVIF is larger than the original file, the original will be kept automatically.")
                     }
                     
                     // PNG compression settings
@@ -293,7 +309,7 @@ struct CompressionSettingsViewImage: View {
                             }
                         }
                     } header: {
-                        Text("PNG Compression Settings")
+                        Text("PNG Compression Settings (.png)")
                     } footer: {
                         switch settings.pngCompressionTool {
                         case .appleOptimized:

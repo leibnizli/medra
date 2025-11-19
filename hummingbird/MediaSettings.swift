@@ -257,7 +257,6 @@ enum AVIFSpeedPreset: String, CaseIterable, Identifiable {
 // MARK: - AVIF Encoder Backend
 enum AVIFEncoderBackend: String, CaseIterable, Identifiable {
     case systemImageIO = "System (ImageIO)"
-    case ffmpeg = "FFmpeg (libaom-av1)"
     case libavif = "libavif (AOMedia)"
 
     var id: String { rawValue }
@@ -265,7 +264,6 @@ enum AVIFEncoderBackend: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .systemImageIO: return "System (ImageIO)"
-        case .ffmpeg: return "FFmpeg (libaom-av1)"
         case .libavif: return "libavif (Native)"
         }
     }
@@ -274,8 +272,6 @@ enum AVIFEncoderBackend: String, CaseIterable, Identifiable {
         switch self {
         case .systemImageIO:
             return "Use iOS ImageIO AVIF encoder when available (iOS 16+)."
-        case .ffmpeg:
-            return "Use FFmpeg libaom-av1 encoder via ffmpeg-kit."
         case .libavif:
             return "Use AOMedia libavif C library for encoding."
         }

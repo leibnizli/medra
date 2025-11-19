@@ -46,7 +46,7 @@ struct AVIFCompressor {
         
         let originalSize = sourceData.count
         
-        // Select backend in priority order (FFmpeg backend is disabled for still images, treated same as libavif+ImageIO)
+        // Select backend in priority order
         switch backend {
         case .systemImageIO:
             print("🧪 [AVIF] Trying backend: System ImageIO")
@@ -59,7 +59,7 @@ struct AVIFCompressor {
                 print("🧪 [AVIF] Compression completed with backend: libavif (Native)")
                 return libavifResult
             }
-        case .libavif, .ffmpeg:
+        case .libavif:
             if let libavifResult = encodeUsingLibavif(image: image, quality: quality, originalSize: originalSize) {
                 print("🧪 [AVIF] Compression completed with backend: libavif (Native)")
                 return libavifResult
