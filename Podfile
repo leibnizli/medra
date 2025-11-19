@@ -1,7 +1,7 @@
 platform :ios, '17.0'
 use_frameworks!
 
-target 'hummingbird' do
+target 'medra' do
   pod 'mozjpeg', '~> 3.3'
   pod 'libavif'
   pod 'SDWebImageWebPCoder', '~> 0.14.6'

@@ -1,5 +1,8 @@
 //
-//  Use this file to import your target's public headers that you would like to expose to Swift.
+//  medra-Bridging-Header.h
+//  medra
+//
+//  Created by admin on 2025/11/19.
 //
 
 #import "MozJPEGEncoder.h"

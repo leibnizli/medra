@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>remote-notification</string>
+    </array>
+    <key>UILaunchStoryboardName</key>
+    <string>LaunchScreen</string>
+    <key>UISupportsDocumentBrowser</key>
+    <true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
+    <key>NSUbiquitousContainers</key>
+    <dict>
+        <key>iCloud.dev.arayofsunshine.hummingbird.ios</key>
+        <dict>
+            <key>NSUbiquitousContainerIsDocumentScopePublic</key>
+            <true/>
+            <key>NSUbiquitousContainerName</key>
+            <string>Hummingbird</string>
+            <key>NSUbiquitousContainerSupportedFolderLevels</key>
+            <string>Any</string>
+        </dict>
+    </dict>
+    <key>UTImportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>public.avif</string>
+            <key>UTTypeDescription</key>
+            <string>AVIF Image</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.image</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>avif</string>
+                </array>
+                <key>public.mime-type</key>
+                <string>image/avif</string>
+            </dict>
+        </dict>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>public.avci</string>
+            <key>UTTypeDescription</key>
+            <string>AVIF Image Codec Image Item</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.image</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>avci</string>
+                </array>
+                <key>public.mime-type</key>
+                <string>image/avci</string>
+            </dict>
+        </dict>
+    </array>
+    <key>UTExportedTypeDeclarations</key>
+    <array/>
+</dict>
+</plist>
