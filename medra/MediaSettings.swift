@@ -342,7 +342,7 @@ class CompressionSettings: ObservableObject {
     @Published var avifEncoderBackend: AVIFEncoderBackend = .systemImageIO {
         didSet { UserDefaults.standard.set(avifEncoderBackend.rawValue, forKey: "avifEncoderBackend") }
     }
-    @Published var preserveAnimatedWebP: Bool = true {
+    @Published var preserveAnimatedWebP: Bool = false {
         didSet { UserDefaults.standard.set(preserveAnimatedWebP, forKey: "preserveAnimatedWebP") }
     }
     @Published var preserveAnimatedAVIF: Bool = false {

@@ -152,6 +152,13 @@ struct CompressionViewImage: View {
                 }
             }
         }
+        .onChange(of: settings.preserveAnimatedWebP) { _, newValue in
+            Task { @MainActor in
+                for item in mediaItems where item.isAnimatedWebP {
+                    item.infoMessage = webpAnimationMessage(preserve: newValue)
+                }
+            }
+        }
         .sheet(isPresented: $showingSettings) {
             CompressionSettingsViewImage(settings: settings)
                 .presentationDetents([.large])
@@ -264,7 +271,8 @@ struct CompressionViewImage: View {
                         mediaItem.originalResolution = image.size
                         mediaItem.status = .pending
                         if isAnimatedAVIF {
-                            mediaItem.infoMessage = settings.preserveAnimatedAVIF ? "Animated AVIF detected — will preserve frames" : "Animated AVIF detected — will convert to static"
+                            // 使用辅助函数，根据当前设置动态生成提示文案
+                            mediaItem.infoMessage = avifAnimationMessage(preserve: settings.preserveAnimatedAVIF)
                         }
                     }
                 }
@@ -290,6 +298,8 @@ struct CompressionViewImage: View {
                         await MainActor.run {
                             mediaItem.isAnimatedWebP = true
                             mediaItem.webpFrameCount = 0
+                            // 根据当前设置显示 WebP 动画提示
+                            mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP)
                         }
                     }
                     
@@ -305,6 +315,12 @@ struct CompressionViewImage: View {
                             await MainActor.run {
                                 mediaItem.isAnimatedWebP = isAnimated
                                 mediaItem.webpFrameCount = frameCount
+                                if isAnimated {
+                                    mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP)
+                                } else if !mediaItem.isAnimatedAVIF {
+                                    // 不是动画 WebP 且也不是动画 AVIF，则清空这类提示
+                                    mediaItem.infoMessage = nil
+                                }
                             }
                         }
                     }
@@ -450,6 +466,7 @@ struct CompressionViewImage: View {
                     await MainActor.run {
                         mediaItem.isAnimatedWebP = true
                         mediaItem.webpFrameCount = 0  // 暂时未知
+                        mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP)
                     }
                 }
                 
@@ -469,6 +486,11 @@ struct CompressionViewImage: View {
                         await MainActor.run {
                             mediaItem.isAnimatedWebP = isAnimated
                             mediaItem.webpFrameCount = frameCount
+                            if isAnimated {
+                                mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP)
+                            } else if !mediaItem.isAnimatedAVIF {
+                                mediaItem.infoMessage = nil
+                            }
                         }
                     } else {
                         print("⚠️ [LoadImage] SDAnimatedImage 初始化失败，保持文件头检测结果")
@@ -702,6 +724,10 @@ struct CompressionViewImage: View {
     
     private func avifAnimationMessage(preserve: Bool) -> String {
         preserve ? "Animated AVIF detected — will preserve frames" : "Animated AVIF detected — will convert to static"
+    }
+    
+    private func webpAnimationMessage(preserve: Bool) -> String {
+        preserve ? "Animated WebP detected — will preserve frames" : "Animated WebP detected — will convert to static"
     }
 }
 
