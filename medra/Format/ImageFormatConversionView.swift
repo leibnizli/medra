@@ -230,14 +230,35 @@ struct ImageFormatConversionView: View {
         }
         print("[convertImage] 原始数据大小: \(originalData.count) bytes")
         
-        // 加载图片
-        guard let image = UIImage(data: originalData) else {
-            print(" [convertImage] 无法解码图片")
-            await MainActor.run {
-                item.status = .failed
-                item.errorMessage = "无法解码图片"
+        // 加载图片（对于动画 WebP/AVIF 只取第一帧）
+        let image: UIImage
+        
+        // 检测是否为动画 WebP
+        if let animatedImage = SDAnimatedImage(data: originalData), animatedImage.animatedImageFrameCount > 1 {
+            print("[convertImage] 检测到动画 WebP/GIF，只使用第一帧进行转换")
+            if let firstFrame = animatedImage.animatedImageFrame(at: 0) {
+                image = firstFrame
+            } else if let fallbackImage = UIImage(data: originalData) {
+                image = fallbackImage
+            } else {
+                print("❌ [convertImage] 无法解码图片")
+                await MainActor.run {
+                    item.status = .failed
+                    item.errorMessage = "无法解码图片"
+                }
+                return
             }
-            return
+        } else {
+            // 静态图片或非动画格式，正常解码
+            guard let staticImage = UIImage(data: originalData) else {
+                print("❌ [convertImage] 无法解码图片")
+                await MainActor.run {
+                    item.status = .failed
+                    item.errorMessage = "无法解码图片"
+                }
+                return
+            }
+            image = staticImage
         }
         print("[convertImage] 图片解码成功，尺寸: \(image.size)")
         
@@ -415,39 +436,96 @@ struct ImageFormatConversionView: View {
             }
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
             
-            let webpCoder = SDImageWebPCoder.shared
-            
-            // WebP 格式对 EXIF 支持有限，但我们尝试保留
-            let imageToEncode: UIImage
-            if settings.preserveExif {
-                // 保留 EXIF 时使用原始图片（保持原始方向）
-                imageToEncode = image
-                print("[convertImage] WebP 使用原始图片（注意：WebP 对 EXIF 支持有限）")
+            // 检测是否为动画 WebP/GIF，如果是则保留动画
+            if let animatedImage = SDAnimatedImage(data: originalData), animatedImage.animatedImageFrameCount > 1 {
+                print("[convertImage] 检测到动画图片，保留动画帧进行 WebP 转换")
+                
+                let frameCount = animatedImage.animatedImageFrameCount
+                var frames: [SDImageFrame] = []
+                frames.reserveCapacity(Int(frameCount))
+                
+                // 提取所有动画帧
+                for index in 0..<frameCount {
+                    autoreleasepool {
+                        if let frameImage = animatedImage.animatedImageFrame(at: index) {
+                            let duration = animatedImage.animatedImageDuration(at: index)
+                            let frame = SDImageFrame(image: frameImage, duration: duration)
+                            frames.append(frame)
+                        }
+                    }
+                    
+                    // 更新进度
+                    await MainActor.run {
+                        let progress = 0.4 + (0.3 * Float(index + 1) / Float(max(frameCount, 1)))
+                        item.progress = max(item.progress, progress)
+                    }
+                }
+                
+                await MainActor.run {
+                    item.progress = 0.7
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+                
+                // 使用多帧编码
+                let webpCoder = SDImageWebPCoder.shared
+                let options: [SDImageCoderOption: Any] = [
+                    .encodeCompressionQuality: 0.85,
+                    .encodeFirstFrameOnly: false
+                ]
+                
+                convertedData = webpCoder.encodedData(
+                    with: frames,
+                    loopCount: animatedImage.animatedImageLoopCount,
+                    format: .webP,
+                    options: options
+                )
+                
+                if let data = convertedData {
+                    print("[convertImage] ✅ WebP 动画转换成功，帧数: \(frameCount)，大小: \(data.count) bytes")
+                    await MainActor.run {
+                        item.preservedAnimation = true
+                    }
+                } else {
+                    print("❌ [convertImage] WebP 动画转换失败")
+                }
             } else {
-                // 不保留 EXIF 时修正方向
-                imageToEncode = image.fixOrientation()
-            }
-            
-            await MainActor.run {
-                item.progress = 0.5
-            }
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
-            
-            // 使用 0.85 的压缩质量，在质量和体积之间取得平衡
-            let options: [SDImageCoderOption: Any] = [
-                .encodeCompressionQuality: 0.85
-            ]
-            convertedData = webpCoder.encodedData(with: imageToEncode, format: .webP, options: options)
-            
-            await MainActor.run {
-                item.progress = 0.7
-            }
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
-            
-            if let data = convertedData {
-                print("[convertImage] WebP 转换成功，大小: \(data.count) bytes")
-            } else {
-                print(" [convertImage] WebP 转换失败")
+                // 静态图片，使用单帧编码
+                print("[convertImage] 静态图片，使用单帧 WebP 编码")
+                
+                let webpCoder = SDImageWebPCoder.shared
+                
+                // WebP 格式对 EXIF 支持有限，但我们尝试保留
+                let imageToEncode: UIImage
+                if settings.preserveExif {
+                    // 保留 EXIF 时使用原始图片（保持原始方向）
+                    imageToEncode = image
+                    print("[convertImage] WebP 使用原始图片（注意：WebP 对 EXIF 支持有限）")
+                } else {
+                    // 不保留 EXIF 时修正方向
+                    imageToEncode = image.fixOrientation()
+                }
+                
+                await MainActor.run {
+                    item.progress = 0.5
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+                
+                // 使用 0.85 的压缩质量，在质量和体积之间取得平衡
+                let options: [SDImageCoderOption: Any] = [
+                    .encodeCompressionQuality: 0.85
+                ]
+                convertedData = webpCoder.encodedData(with: imageToEncode, format: .webP, options: options)
+                
+                await MainActor.run {
+                    item.progress = 0.7
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+                
+                if let data = convertedData {
+                    print("[convertImage] ✅ WebP 转换成功，大小: \(data.count) bytes")
+                } else {
+                    print("❌ [convertImage] WebP 转换失败")
+                }
             }
             
         case .avif:
@@ -458,31 +536,68 @@ struct ImageFormatConversionView: View {
             }
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
             
-            // AVIF 不支持 EXIF，使用修正方向后的图片
-            let imageToEncode = image.fixOrientation()
+            // 检测是否为动画 AVIF，如果是则保留动画
+            let isAnimatedAVIF = MediaCompressor.isAnimatedAVIF(data: originalData)
             
-            await MainActor.run {
-                item.progress = 0.5
-            }
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
-            
-            // 使用 AVIFCompressor 进行编码
-            if let result = await AVIFCompressor.compress(
-                image: imageToEncode,
-                quality: 0.85,
-                speedPreset: .balanced,
-                backend: .systemImageIO,
-                progressHandler: { progress in
-                    Task { @MainActor in
-                        item.progress = 0.5 + progress * 0.2
-                    }
+            if isAnimatedAVIF {
+                print("[convertImage] 检测到动画 AVIF，保留动画帧进行转换")
+                
+                await MainActor.run {
+                    item.progress = 0.5
                 }
-            ) {
-                convertedData = result.data
-                print("[convertImage] AVIF 转换成功，大小: \(result.data.count) bytes")
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+                
+                // 使用 AVIFCompressor.compressAnimated 保留动画
+                if let result = await AVIFCompressor.compressAnimated(
+                    avifData: originalData,
+                    quality: 0.85,
+                    speedPreset: .balanced,
+                    backend: .systemImageIO,
+                    progressHandler: { progress in
+                        Task { @MainActor in
+                            item.progress = 0.5 + progress * 0.2
+                        }
+                    }
+                ) {
+                    convertedData = result.data
+                    print("[convertImage] ✅ AVIF 动画转换成功，大小: \(result.data.count) bytes")
+                    await MainActor.run {
+                        item.preservedAnimation = true
+                    }
+                } else {
+                    print("❌ [convertImage] AVIF 动画转换失败")
+                    convertedData = nil
+                }
             } else {
-                print("❌ [convertImage] AVIF 转换失败")
-                convertedData = nil
+                // 静态图片，使用单帧编码
+                print("[convertImage] 静态图片，使用单帧 AVIF 编码")
+                
+                // AVIF 不支持 EXIF，使用修正方向后的图片
+                let imageToEncode = image.fixOrientation()
+                
+                await MainActor.run {
+                    item.progress = 0.5
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+                
+                // 使用 AVIFCompressor 进行编码
+                if let result = await AVIFCompressor.compress(
+                    image: imageToEncode,
+                    quality: 0.85,
+                    speedPreset: .balanced,
+                    backend: .systemImageIO,
+                    progressHandler: { progress in
+                        Task { @MainActor in
+                            item.progress = 0.5 + progress * 0.2
+                        }
+                    }
+                ) {
+                    convertedData = result.data
+                    print("[convertImage] ✅ AVIF 转换成功，大小: \(result.data.count) bytes")
+                } else {
+                    print("❌ [convertImage] AVIF 转换失败")
+                    convertedData = nil
+                }
             }
             
             await MainActor.run {

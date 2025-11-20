@@ -44,6 +44,11 @@ struct ResolutionView: View {
         mediaItems.contains { $0.status == .loading }
     }
     
+    // Check if any media items have animated WebP or AVIF
+    private var hasAnimatedWebPOrAVIF: Bool {
+        mediaItems.contains { $0.isAnimatedWebP || $0.isAnimatedAVIF }
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -186,6 +191,31 @@ struct ResolutionView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
+                    
+                    // 动画丢失警告（仅在有动画 WebP/AVIF 时显示）
+                    if hasAnimatedWebPOrAVIF {
+                        Divider()
+                            .padding(.leading, 16)
+                        
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.orange)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Animation Will Be Lost")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.primary)
+                                Text("Resolution adjustment does not preserve animations for WebP and AVIF formats. Only the first frame will be kept.")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color.orange.opacity(0.1))
+                    }
                     
                     Rectangle()
                         .fill(Color(uiColor: .separator).opacity(0.5))
@@ -1018,11 +1048,8 @@ struct ResolutionView: View {
         // 使用原始格式（从 item 中获取）
         let originalFormat = item.originalImageFormat ?? .jpeg
         
-        // 特殊处理：动画 WebP，在调整分辨率时尽量保留动画
-        if originalFormat == .webp, item.isAnimatedWebP {
-            await resizeAnimatedWebP(item, originalData: originalData)
-            return
-        }
+        // 注意：ResolutionView 不保留动画，只处理第一帧（已在 UI 中警告用户）
+        // 如果是动画 WebP，只提取第一帧进行处理
         
         guard var image = UIImage(data: originalData) else {
             await MainActor.run {
@@ -1238,114 +1265,7 @@ struct ResolutionView: View {
         }
     }
 
-    /// 调整动画 WebP 分辨率，同时尽量保留动画帧
-    private func resizeAnimatedWebP(_ item: MediaItem, originalData: Data) async {
-        // 如果没有目标尺寸，就直接保留原始数据与动画
-        guard let (targetWidth, targetHeight) = getTargetSize(),
-              targetWidth > 0, targetHeight > 0 else {
-            await MainActor.run {
-                item.compressedData = originalData
-                item.compressedSize = originalData.count
-                if let animatedImage = SDAnimatedImage(data: originalData) {
-                    item.compressedResolution = animatedImage.size
-                    item.webpFrameCount = Int(animatedImage.animatedImageFrameCount)
-                    item.isAnimatedWebP = animatedImage.animatedImageFrameCount > 1
-                } else if let image = UIImage(data: originalData) {
-                    item.compressedResolution = image.size
-                    item.isAnimatedWebP = false
-                }
-                item.outputImageFormat = .webp
-                item.status = .completed
-                item.progress = 1.0
-                item.preservedAnimation = true
-            }
-            return
-        }
-
-        // 仍然在 WebP 层逐帧处理，但做了一些优化（进度更新 + 内存释放）
-        guard let animatedImage = SDAnimatedImage(data: originalData) else {
-            // 无法按动画方式解析时，退回到静态路径
-            await MainActor.run {
-                item.isAnimatedWebP = false
-            }
-            await resizeImage(item)
-            return
-        }
-
-        let frameCount = animatedImage.animatedImageFrameCount
-        var frames: [SDImageFrame] = []
-        frames.reserveCapacity(Int(frameCount))
-
-        for index in 0..<frameCount {
-            autoreleasepool {
-                if let frameImage = animatedImage.animatedImageFrame(at: index) {
-                    let resizedFrame = resizeAndCropImage(
-                        frameImage,
-                        targetWidth: targetWidth,
-                        targetHeight: targetHeight,
-                        mode: settings.resizeMode
-                    )
-                    let duration = animatedImage.animatedImageDuration(at: index)
-                    let frame = SDImageFrame(image: resizedFrame, duration: duration)
-                    frames.append(frame)
-                }
-            }
-            // 简单进度：从 0.1~0.8 随帧数推进
-            await MainActor.run {
-                let progress = 0.1 + (0.7 * Float(index + 1) / Float(max(frameCount, 1)))
-                item.progress = max(item.progress, progress)
-            }
-        }
-
-        // 如果没有成功提取任何帧，则回退到静态处理
-        guard !frames.isEmpty else {
-            await MainActor.run {
-                item.isAnimatedWebP = false
-            }
-            await resizeImage(item)
-            return
-        }
-
-        let webpCoder = SDImageWebPCoder.shared
-        let options: [SDImageCoderOption: Any] = [
-            .encodeCompressionQuality: 0.9,
-            .encodeFirstFrameOnly: false
-        ]
-
-        if let webpData = webpCoder.encodedData(
-            with: frames,
-            loopCount: animatedImage.animatedImageLoopCount,
-            format: .webP,
-            options: options
-        ) {
-            let outputSize = frames.first?.image.size ?? animatedImage.size
-
-            await MainActor.run {
-                item.compressedData = webpData
-                item.compressedSize = webpData.count
-                item.compressedResolution = outputSize
-                item.outputImageFormat = .webp
-                item.status = .completed
-                item.progress = 1.0
-                item.isAnimatedWebP = frameCount > 1
-                item.webpFrameCount = Int(frameCount)
-                item.preservedAnimation = frameCount > 1
-            }
-        } else {
-            // 编码失败时，保持原始数据以避免破坏动画
-            await MainActor.run {
-                item.compressedData = originalData
-                item.compressedSize = originalData.count
-                item.compressedResolution = animatedImage.size
-                item.outputImageFormat = .webp
-                item.status = .completed
-                item.progress = 1.0
-                item.isAnimatedWebP = animatedImage.animatedImageFrameCount > 1
-                item.webpFrameCount = Int(animatedImage.animatedImageFrameCount)
-                item.preservedAnimation = animatedImage.animatedImageFrameCount > 1
-            }
-        }
-    }
+    
     
     private func resizeVideo(_ item: MediaItem) async {
         // 确保有视频 URL
