@@ -380,28 +380,49 @@ final class MediaCompressor {
         originalSize: Int,
         progressHandler: ((Float) -> Void)?
     ) async -> Data {
-        progressHandler?(0.3)
+        let frameCount = animatedImage.animatedImageFrameCount
         print("🔄 [WebP] 开始动画 WebP 压缩 - 质量: \(quality)")
-        print("📊 [WebP] 原始动画信息 - 帧数: \(animatedImage.animatedImageFrameCount), 循环次数: \(animatedImage.animatedImageLoopCount), 原始大小: \(originalSize) bytes")
+        print("📊 [WebP] 原始动画信息 - 帧数: \(frameCount), 循环次数: \(animatedImage.animatedImageLoopCount), 原始大小: \(originalSize) bytes")
+        
+        // 警告：大文件处理
+        if frameCount > 100 {
+            print("⚠️ [WebP] 警告：检测到大型动画文件（\(frameCount) 帧），编码可能需要较长时间")
+        }
         
         let webpCoder = SDImageWebPCoder.shared
         let normalizedQuality = max(0.01, min(1.0, quality))
         
-        // 提取所有帧
+        // 提取所有帧 - 添加进度更新
         var frames: [SDImageFrame] = []
-        for i in 0..<animatedImage.animatedImageFrameCount {
+        let totalFrames = Int(frameCount)
+        
+        for i in 0..<frameCount {
             if let frameImage = animatedImage.animatedImageFrame(at: i) {
                 let duration = animatedImage.animatedImageDuration(at: i)
                 let frame = SDImageFrame(image: frameImage, duration: duration)
                 frames.append(frame)
-                print("📸 [WebP] 提取帧 \(i+1)/\(animatedImage.animatedImageFrameCount) - 时长: \(duration)s")
+                
+                // 每10帧或最后一帧打印一次日志
+                if (i + 1) % 10 == 0 || i == frameCount - 1 {
+                    print("📸 [WebP] 提取帧 \(i+1)/\(totalFrames) - 时长: \(String(format: "%.2f", duration))s")
+                }
+                
+                // 更新进度：帧提取占 0.3-0.5 (20%)
+                let extractProgress = Float(i + 1) / Float(totalFrames)
+                let mappedProgress = 0.3 + (extractProgress * 0.2)
+                progressHandler?(mappedProgress)
+                
+                // 每提取10帧让出一次控制权，避免阻塞主线程
+                if (i + 1) % 10 == 0 {
+                    await Task.yield()
+                }
             }
         }
         
         print("📊 [WebP] 共提取 \(frames.count) 帧")
+        progressHandler?(0.5)
         
         // 使用 encodedData(with:loopCount:format:options:) 方法编码动画
-        // 注意：SDWebImageWebPCoder 默认使用有损压缩（VP8），不是无损（VP8L）
         let options: [SDImageCoderOption: Any] = [
             .encodeCompressionQuality: normalizedQuality,
             .encodeFirstFrameOnly: false  // 编码所有帧
@@ -410,7 +431,35 @@ final class MediaCompressor {
         print("🔧 [WebP] 编码选项: quality=\(normalizedQuality), encodeFirstFrameOnly=false, frames=\(frames.count)")
         print("💡 [WebP] 提示：原始文件可能是无损 WebP，重新编码为有损格式")
         
-        if let webpData = webpCoder.encodedData(with: frames, loopCount: animatedImage.animatedImageLoopCount, format: .webP, options: options) {
+        // 大文件时间预估
+        if frameCount > 100 {
+            let estimatedSeconds = frameCount / 10  // 粗略估计：每秒处理约10帧
+            print("⏳ [WebP] 开始编码 \(frames.count) 帧，预计需要约 \(estimatedSeconds) 秒，请稍候...")
+        } else {
+            print("⏳ [WebP] 开始编码 \(frames.count) 帧，请稍候...")
+        }
+        
+        // 编码过程 - 这是最耗时的部分，移到后台线程执行
+        progressHandler?(0.6)
+        
+        let loopCount = animatedImage.animatedImageLoopCount
+        
+        // 使用 Task.detached 在后台线程执行编码，避免阻塞主线程
+        let webpData = await Task.detached(priority: .userInitiated) {
+            print("🔄 [WebP] 后台线程开始编码...")
+            let startTime = Date()
+            
+            let result = webpCoder.encodedData(with: frames, loopCount: loopCount, format: .webP, options: options)
+            
+            let elapsed = Date().timeIntervalSince(startTime)
+            print("⏱️ [WebP] 编码耗时: \(String(format: "%.2f", elapsed)) 秒")
+            
+            return result
+        }.value
+        
+        if let webpData = webpData {
+            progressHandler?(0.9)
+            
             // 验证压缩后的数据是否仍然是动画
             if let verifyImage = SDAnimatedImage(data: webpData) {
                 let verifyFrameCount = verifyImage.animatedImageFrameCount
@@ -418,13 +467,13 @@ final class MediaCompressor {
                 
                 print("✅ [WebP] 动画压缩成功")
                 print("   - 质量: \(normalizedQuality)")
-                print("   - 原始帧数: \(animatedImage.animatedImageFrameCount)")
+                print("   - 原始帧数: \(frameCount)")
                 print("   - 压缩后帧数: \(verifyFrameCount)")
                 print("   - 原始大小: \(originalSize) bytes")
                 print("   - 压缩后大小: \(webpData.count) bytes")
                 print("   - 压缩比: \(String(format: "%.1f%%", compressionRatio * 100))")
                 
-                if verifyFrameCount != animatedImage.animatedImageFrameCount {
+                if verifyFrameCount != frameCount {
                     print("⚠️ [WebP] 警告：帧数不匹配！可能丢失了动画")
                 } else {
                     print("✅ [WebP] 帧数匹配，动画完整保留")

@@ -155,7 +155,7 @@ struct CompressionViewImage: View {
         .onChange(of: settings.preserveAnimatedWebP) { _, newValue in
             Task { @MainActor in
                 for item in mediaItems where item.isAnimatedWebP {
-                    item.infoMessage = webpAnimationMessage(preserve: newValue)
+                    item.infoMessage = webpAnimationMessage(preserve: newValue, frameCount: item.webpFrameCount)
                 }
             }
         }
@@ -298,8 +298,8 @@ struct CompressionViewImage: View {
                         await MainActor.run {
                             mediaItem.isAnimatedWebP = true
                             mediaItem.webpFrameCount = 0
-                            // 根据当前设置显示 WebP 动画提示
-                            mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP)
+                            // 根据当前设置显示 WebP 动画提示（帧数暂时未知）
+                            mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP, frameCount: 0)
                         }
                     }
                     
@@ -316,7 +316,7 @@ struct CompressionViewImage: View {
                                 mediaItem.isAnimatedWebP = isAnimated
                                 mediaItem.webpFrameCount = frameCount
                                 if isAnimated {
-                                    mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP)
+                                    mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP, frameCount: frameCount)
                                 } else if !mediaItem.isAnimatedAVIF {
                                     // 不是动画 WebP 且也不是动画 AVIF，则清空这类提示
                                     mediaItem.infoMessage = nil
@@ -466,7 +466,7 @@ struct CompressionViewImage: View {
                     await MainActor.run {
                         mediaItem.isAnimatedWebP = true
                         mediaItem.webpFrameCount = 0  // 暂时未知
-                        mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP)
+                        mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP, frameCount: 0)
                     }
                 }
                 
@@ -487,7 +487,7 @@ struct CompressionViewImage: View {
                             mediaItem.isAnimatedWebP = isAnimated
                             mediaItem.webpFrameCount = frameCount
                             if isAnimated {
-                                mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP)
+                                mediaItem.infoMessage = webpAnimationMessage(preserve: settings.preserveAnimatedWebP, frameCount: frameCount)
                             } else if !mediaItem.isAnimatedAVIF {
                                 mediaItem.infoMessage = nil
                             }
@@ -646,6 +646,16 @@ struct CompressionViewImage: View {
                     await MainActor.run {
                         item.isAnimatedWebP = frameCount > 1
                         item.webpFrameCount = Int(frameCount)
+                        
+                        // 如果是大型动画且保留动画，显示编码提示
+                        if frameCount > 1 && settings.preserveAnimatedWebP {
+                            if frameCount > 100 {
+                                let estimatedSeconds = Int(frameCount) / 10
+                                item.infoMessage = "Encoding \(Int(frameCount)) frames (~\(estimatedSeconds)s), please wait..."
+                            } else {
+                                item.infoMessage = "Encoding \(Int(frameCount)) frames, please wait..."
+                            }
+                        }
                     }
                     print("📊 [CompressionView] 检测到 WebP - 动画: \(frameCount > 1), 帧数: \(frameCount)")
                 }
@@ -702,7 +712,7 @@ struct CompressionViewImage: View {
                             
                             // 设置 WebP 动画相关提示
                             if item.preservedAnimation {
-                                item.infoMessage = "Animated WebP re-encoded with quality settings"
+                                item.infoMessage = "Animated WebP re-encoded (\(item.webpFrameCount) frames preserved)"
                             } else {
                                 item.infoMessage = "Animation removed during WebP re-encode"
                             }
@@ -752,8 +762,18 @@ struct CompressionViewImage: View {
         preserve ? "Animated AVIF detected — original file will be kept (no compression)" : "Animated AVIF detected — will convert to static"
     }
     
-    private func webpAnimationMessage(preserve: Bool) -> String {
-        preserve ? "Animated WebP detected — will preserve frames" : "Animated WebP detected — will convert to static"
+    private func webpAnimationMessage(preserve: Bool, frameCount: Int = 0) -> String {
+        if preserve {
+            if frameCount > 100 {
+                return "Animated WebP detected (\(frameCount) frames) — will preserve frames (may take longer)"
+            } else if frameCount > 0 {
+                return "Animated WebP detected (\(frameCount) frames) — will preserve frames"
+            } else {
+                return "Animated WebP detected — will preserve frames"
+            }
+        } else {
+            return "Animated WebP detected — will convert to static"
+        }
     }
 }
 
