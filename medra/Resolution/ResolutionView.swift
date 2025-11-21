@@ -38,6 +38,7 @@ struct ResolutionView: View {
     @State private var showingFilePicker = false
     @State private var showingPhotoPicker = false
     @StateObject private var settings = ResolutionSettings()
+    @StateObject private var compressionSettings = CompressionSettings()
     
     // Check if any media items are loading
     private var hasLoadingItems: Bool {
@@ -1055,7 +1056,9 @@ struct ResolutionView: View {
                 return
             }
             resizedData = pngData
-                print("✅ [Resolution Adjustment] PNG encoding successful - Size: \(resizedData.count) bytes")        case .heic:
+            print("✅ [Resolution Adjustment] PNG encoding successful - Size: \(resizedData.count) bytes")
+            
+        case .heic:
             // HEIC 格式
             if #available(iOS 11.0, *) {
                 let mutableData = NSMutableData()
@@ -1103,7 +1106,8 @@ struct ResolutionView: View {
                 return
             }
             resizedData = jpegData
-                print("✅ [Resolution Adjustment] JPEG encoding successful - Size: \(resizedData.count) bytes")        
+            print("✅ [Resolution Adjustment] JPEG encoding successful - Size: \(resizedData.count) bytes")
+            
         case .webp:
             // WebP 格式 - 使用 SDWebImageWebPCoder
             let webpCoder = SDImageWebPCoder.shared
@@ -1145,6 +1149,26 @@ struct ResolutionView: View {
                 }
                 resizedData = jpegData
                 print("✅ [Resolution Adjustment] JPEG encoding successful (AVIF fallback) - Size: \(resizedData.count) bytes")
+            }
+            
+        case .gif:
+            // GIF 格式 - 使用 GIFCompressor
+            if let pngData = image.pngData(),
+               let gifData = await GIFCompressor.compress(data: pngData, settings: compressionSettings, progressHandler: { _ in }) {
+                resizedData = gifData
+                print("✅ [Resolution Adjustment] GIF encoding successful - Size: \(resizedData.count) bytes")
+            } else {
+                // GIF 编码失败，回退到 JPEG
+                print("⚠️ [Resolution Adjustment] GIF encoding failed, falling back to JPEG")
+                guard let jpegData = image.jpegData(compressionQuality: 0.9) else {
+                    await MainActor.run {
+                        item.status = .failed
+                        item.errorMessage = "Unable to encode image"
+                    }
+                    return
+                }
+                resizedData = jpegData
+                print("✅ [Resolution Adjustment] JPEG encoding successful (GIF fallback) - Size: \(resizedData.count) bytes")
             }
         }
         

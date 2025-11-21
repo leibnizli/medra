@@ -172,11 +172,11 @@ struct FormatItemRow: View {
                                     }
                                 }
                             }
+                            Spacer()
+                            statusBadge
                         }
                         
-                        Spacer()
                         
-                        statusBadge
                         
                         // 转换规则说明（独立一行）
                         if (item.isAnimatedWebP || item.isAnimatedAVIF), let target = targetFormat {

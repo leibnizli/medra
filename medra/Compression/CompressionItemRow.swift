@@ -221,6 +221,43 @@ struct CompressionItemRow: View {
                                             .clipShape(RoundedRectangle(cornerRadius: 4))
                                         }
                                     }
+                                    
+                                    // GIF 动画标识（压缩后）
+                                    if item.isAnimatedGIF && (originalFormat == "GIF" || outputFormat == "GIF") {
+                                        if item.preservedAnimation {
+                                            HStack(spacing: 2) {
+                                                Image(systemName: "play.circle.fill")
+                                                    .font(.caption2)
+                                                if item.gifFrameCount > 0 {
+                                                    Text("\(item.gifFrameCount) frames")
+                                                        .font(.caption2)
+                                                        .fontWeight(.medium)
+                                                } else {
+                                                    Text("Animated")
+                                                        .font(.caption2)
+                                                        .fontWeight(.medium)
+                                                }
+                                            }
+                                            .foregroundStyle(.green)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.green.opacity(0.15))
+                                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        } else {
+                                            HStack(spacing: 2) {
+                                                Image(systemName: "photo.fill")
+                                                    .font(.caption2)
+                                                Text("Static")
+                                                    .font(.caption2)
+                                                    .fontWeight(.medium)
+                                            }
+                                            .foregroundStyle(.orange)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.orange.opacity(0.15))
+                                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        }
+                                    }
                                 }
                             } else {
                                 // 未完成时只显示原始格式
@@ -274,6 +311,28 @@ struct CompressionItemRow: View {
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
                                     .background(Color.blue.opacity(0.15))
+                                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                                }
+                                
+                                // GIF 动画标识（压缩前）
+                                if item.isAnimatedGIF && item.fileExtension.uppercased() == "GIF" {
+                                    HStack(spacing: 2) {
+                                        Image(systemName: "play.circle.fill")
+                                            .font(.caption2)
+                                        if item.gifFrameCount > 0 {
+                                            Text("\(item.gifFrameCount) frames")
+                                                .font(.caption2)
+                                                .fontWeight(.medium)
+                                        } else {
+                                            Text("Animated")
+                                                .font(.caption2)
+                                                .fontWeight(.medium)
+                                        }
+                                    }
+                                    .foregroundStyle(.purple)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.purple.opacity(0.15))
                                     .clipShape(RoundedRectangle(cornerRadius: 4))
                                 }
                             }
@@ -808,6 +867,8 @@ struct CompressionItemRow: View {
                 fileExtension = "webp"
             case .avif:
                 fileExtension = "avif"
+            case .gif:
+                fileExtension = "gif"
             default:
                 fileExtension = "jpg"
             }
@@ -898,6 +959,10 @@ struct CompressionItemRow: View {
                 fileExtension = "png"
             case .webp:
                 fileExtension = "webp"
+            case .avif:
+                fileExtension = "avif"
+            case .gif:
+                fileExtension = "gif"
             default:
                 fileExtension = "jpg"
             }

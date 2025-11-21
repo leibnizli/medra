@@ -405,6 +405,23 @@ class CompressionSettings: ObservableObject {
         }
     }
     
+    // GIF settings
+    @Published var gifQuality: Double = 0.8 {
+        didSet { UserDefaults.standard.set(gifQuality, forKey: "gifQuality") }
+    }
+    @Published var gifFrameRate: Int = 15 {
+        didSet { UserDefaults.standard.set(gifFrameRate, forKey: "gifFrameRate") }
+    }
+    @Published var gifScale: Double = 0.5 {
+        didSet { UserDefaults.standard.set(gifScale, forKey: "gifScale") }
+    }
+    @Published var gifDithering: Bool = true {
+        didSet { UserDefaults.standard.set(gifDithering, forKey: "gifDithering") }
+    }
+    @Published var preserveAnimatedGIF: Bool = true {
+        didSet { UserDefaults.standard.set(preserveAnimatedGIF, forKey: "preserveAnimatedGIF") }
+    }
+    
     // Audio settings
     @Published var audioFormat: AudioFormat = .original {
         didSet { UserDefaults.standard.set(audioFormat.rawValue, forKey: "audioFormat") }
@@ -515,6 +532,22 @@ class CompressionSettings: ObservableObject {
         }
         if UserDefaults.standard.object(forKey: "pngQuantSpeed") != nil {
             self.pngQuantSpeed = UserDefaults.standard.integer(forKey: "pngQuantSpeed")
+        }
+        
+        if UserDefaults.standard.object(forKey: "gifQuality") != nil {
+            self.gifQuality = UserDefaults.standard.double(forKey: "gifQuality")
+        }
+        if UserDefaults.standard.object(forKey: "gifFrameRate") != nil {
+            self.gifFrameRate = UserDefaults.standard.integer(forKey: "gifFrameRate")
+        }
+        if UserDefaults.standard.object(forKey: "gifScale") != nil {
+            self.gifScale = UserDefaults.standard.double(forKey: "gifScale")
+        }
+        if UserDefaults.standard.object(forKey: "gifDithering") != nil {
+            self.gifDithering = UserDefaults.standard.bool(forKey: "gifDithering")
+        }
+        if UserDefaults.standard.object(forKey: "preserveAnimatedGIF") != nil {
+            self.preserveAnimatedGIF = UserDefaults.standard.bool(forKey: "preserveAnimatedGIF")
         }
         
         if let codecRaw = UserDefaults.standard.string(forKey: "videoCodec"),

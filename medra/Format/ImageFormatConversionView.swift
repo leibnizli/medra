@@ -18,6 +18,7 @@ struct ImageFormatConversionView: View {
     @State private var showingPhotoPicker = false
     @State private var showingFilePicker = false
     @StateObject private var settings = FormatSettings()
+    @StateObject private var compressionSettings = CompressionSettings()
     
     private var hasLoadingItems: Bool {
         mediaItems.contains { $0.status == .loading }
@@ -642,6 +643,34 @@ struct ImageFormatConversionView: View {
             } else {
                 print(" [convertImage] iOS 版本不支持 HEIC")
                 convertedData = nil
+            }
+
+        
+        case .gif:
+            print("[convertImage] 转换为 GIF")
+            
+            await MainActor.run {
+                item.progress = 0.4
+            }
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 秒
+            
+            // 使用 GIFCompressor 将静态图片转换为 GIF
+            // 先转换为 PNG 数据以确保无损输入
+            if let pngData = image.pngData(),
+               let gifData = await GIFCompressor.compress(data: pngData, settings: compressionSettings, progressHandler: { p in
+                   Task { @MainActor in
+                       item.progress = 0.4 + (p * 0.5)
+                   }
+               }) {
+                convertedData = gifData
+                print("[convertImage] ✅ GIF 转换成功，大小: \(gifData.count) bytes")
+            } else {
+                print("❌ [convertImage] GIF 转换失败")
+                convertedData = nil
+            }
+            
+            await MainActor.run {
+                item.progress = 0.9
             }
         }
         

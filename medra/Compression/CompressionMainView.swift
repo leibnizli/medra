@@ -21,10 +21,10 @@ struct CompressionMainView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Image")
                                 .font(.headline)
-                            Text("HEIC, JPEG, PNG, WebP, AVIF")
+                            Text("HEIC, JPEG, PNG, GIF, WebP, AVIF")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Text("WebP animation supported • AVIF animation preserved")
+                            Text("WebP, AVIF, GIF animation supported")
                                 .font(.caption2)
                                 .foregroundStyle(.orange)
                         }

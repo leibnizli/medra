@@ -14,6 +14,7 @@ enum ImageFormat: String, CaseIterable, Identifiable {
     case png = "PNG"
     case webp = "WebP"
     case avif = "AVIF"
+    case gif = "GIF"
     
     var id: String { rawValue }
 }
@@ -214,6 +215,48 @@ final class MediaCompressor {
             }
         }
         
+        // Special handling for GIF (Check Animation)
+        if format == .gif {
+            let isGIF = detectImageFormat(data: data) == .gif
+            if isGIF {
+                // Check if it's an animated GIF
+                if let animatedImage = SDAnimatedImage(data: data) {
+                    let frameCount = animatedImage.animatedImageFrameCount
+                    if frameCount > 1 {
+                        // It's an animated GIF
+                        if settings.preserveAnimatedGIF {
+                            print("🎬 [GIF] Animated GIF detected (\(frameCount) frames) with preserve enabled — compressing with animation preservation")
+                            progressHandler?(0.2)
+                            if let compressedData = await GIFCompressor.compress(data: data, settings: settings, progressHandler: { p in
+                                progressHandler?(0.2 + (p * 0.8))
+                            }) {
+                                return compressedData
+                            } else {
+                                print("⚠️ [GIF] Compression failed, returning original data")
+                                return data
+                            }
+                        } else {
+                            print("🔄 [GIF] Animated GIF detected but preserve disabled, converting to static using first frame")
+                            // For static conversion, we'll let it fall through to normal image processing
+                            // which will only use the first frame
+                        }
+                    } else {
+                        // Static GIF, compress it
+                        print("🔄 [GIF] Static GIF detected, using GIFCompressor")
+                        progressHandler?(0.2)
+                        if let compressedData = await GIFCompressor.compress(data: data, settings: settings, progressHandler: { p in
+                            progressHandler?(0.2 + (p * 0.8))
+                        }) {
+                            return compressedData
+                        } else {
+                            print("⚠️ [GIF] Compression failed, returning original data")
+                            return data
+                        }
+                    }
+                }
+            }
+        }
+        
         // 常规图片处理（包括静态 WebP）
         guard var image = UIImage(data: data) else { throw MediaCompressionError.imageDecodeFailed }
         
@@ -274,6 +317,8 @@ final class MediaCompressor {
             quality = CGFloat(settings.avifQuality)
         case .png:
             quality = 0.0  // PNG 不使用质量参数
+        case .gif:
+            quality = CGFloat(settings.gifQuality)
         }
 
         // 动画 AVIF：根据设置进行特殊处理（以前使用 FFmpeg，多帧保留；现在改为静态重编码）
@@ -309,6 +354,13 @@ final class MediaCompressor {
            bytes[4] == 0x0D && bytes[5] == 0x0A && bytes[6] == 0x1A && bytes[7] == 0x0A {
             print("✅ [格式检测] 检测到 PNG 格式")
             return .png
+        }
+        
+        // GIF 格式检测 (GIF87a 或 GIF89a)
+        if bytes.count >= 6 && bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x38 &&
+           (bytes[4] == 0x37 || bytes[4] == 0x39) && bytes[5] == 0x61 {
+            print("✅ [格式检测] 检测到 GIF 格式")
+            return .gif
         }
         
         // HEIC/HEIF 格式检测 (ftyp box)
@@ -703,6 +755,20 @@ final class MediaCompressor {
                 print("⚠️ [HEIC] iOS 版本低于 11.0，不支持 HEIC")
                 return Data()
             }
+            
+        case .gif:
+            progressHandler?(0.3)
+            print("🔄 [GIF] Encoding static image to GIF")
+            // Use SDWebImage GIF coder or basic conversion
+            // For static image, we can use SDImageGIFCoder if available, or just standard data
+            // But SDWebImage's GIF coder might not be explicitly imported if it's in Core.
+            // Let's try using GIFCompressor by converting image to PNG first
+            if let pngData = image.pngData(),
+               let gifData = await GIFCompressor.compress(data: pngData, settings: settings, progressHandler: { _ in }) {
+                progressHandler?(1.0)
+                return gifData
+            }
+            return Data()
         }
     }
 

@@ -336,6 +336,50 @@ struct CompressionSettingsViewImage: View {
                         }
                     }
                     
+                    // MARK: - GIF (.gif)
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("GIF Quality")
+                                Spacer()
+                                Text("\(Int(settings.gifQuality * 100))%")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: $settings.gifQuality, in: 0.1...1.0, step: 0.05)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Frame Rate")
+                                Spacer()
+                                Text("\(settings.gifFrameRate) fps")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: Binding(
+                                get: { Double(settings.gifFrameRate) },
+                                set: { settings.gifFrameRate = Int($0) }
+                            ), in: 5...30, step: 1)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("Scale")
+                                Spacer()
+                                Text("\(Int(settings.gifScale * 100))%")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Slider(value: $settings.gifScale, in: 0.1...1.0, step: 0.1)
+                        }
+                        
+                        Toggle("Enable Dithering", isOn: $settings.gifDithering)
+                        
+                        Toggle("Preserve Animated GIF", isOn: $settings.preserveAnimatedGIF)
+                    } header: {
+                        Text("GIF (.gif)")
+                    } footer: {
+                        Text("GIF compression involves reducing colors and frames. Lower quality and frame rate significantly reduce file size. When 'Preserve Animated GIF' is enabled, animations will be maintained during compression.")
+                    }
+                    
                     // Open source notices
                     Section {
                         VStack(alignment: .leading, spacing: 16) {

@@ -159,6 +159,13 @@ struct CompressionViewImage: View {
                 }
             }
         }
+        .onChange(of: settings.preserveAnimatedGIF) { _, newValue in
+            Task { @MainActor in
+                for item in mediaItems where item.isAnimatedGIF {
+                    item.infoMessage = gifAnimationMessage(preserve: newValue, frameCount: item.gifFrameCount)
+                }
+            }
+        }
         .sheet(isPresented: $showingSettings) {
             CompressionSettingsViewImage(settings: settings)
                 .presentationDetents([.large])
@@ -240,6 +247,9 @@ struct CompressionViewImage: View {
                             } else if let avifType = UTType(filenameExtension: "avif"), type.conforms(to: avifType) {
                                 mediaItem.originalImageFormat = .avif
                                 mediaItem.fileExtension = "avif"
+                            } else if type.identifier == "com.compuserve.gif" || type.conforms(to: .gif) {
+                                mediaItem.originalImageFormat = .gif
+                                mediaItem.fileExtension = "gif"
                             } else {
                                 mediaItem.originalImageFormat = .jpeg
                             }
@@ -259,6 +269,8 @@ struct CompressionViewImage: View {
                                 mediaItem.originalImageFormat = .webp
                             case "avif":
                                 mediaItem.originalImageFormat = .avif
+                            case "gif":
+                                mediaItem.originalImageFormat = .gif
                             default:
                                 mediaItem.originalImageFormat = .jpeg
                             }
@@ -332,6 +344,26 @@ struct CompressionViewImage: View {
                         let frames = await AVIFCompressor.detectFrameCount(avifData: data)
                         await MainActor.run {
                             mediaItem.avifFrameCount = frames
+                        }
+                    }
+                }
+                
+                // 检测GIF动画
+                let isGIF = fileExtension == "gif"
+                if isGIF {
+                    Task {
+                        if let animatedImage = SDAnimatedImage(data: data) {
+                            let frameCount = animatedImage.animatedImageFrameCount
+                            let isAnimated = frameCount > 1
+                            print("📊 [LoadFileURLs] GIF 检测完成 - 动画: \(isAnimated), 帧数: \(frameCount)")
+                            
+                            await MainActor.run {
+                                mediaItem.isAnimatedGIF = isAnimated
+                                mediaItem.gifFrameCount = Int(frameCount)
+                                if isAnimated {
+                                    mediaItem.infoMessage = gifAnimationMessage(preserve: settings.preserveAnimatedGIF, frameCount: Int(frameCount))
+                                }
+                            }
                         }
                     }
                 }
@@ -432,8 +464,17 @@ struct CompressionViewImage: View {
                     mediaItem.originalImageFormat = .avif
                     mediaItem.fileExtension = "avif"
                 } else {
-                    mediaItem.originalImageFormat = .jpeg
-                    mediaItem.fileExtension = "jpg"
+                    let isGIF = item.supportedContentTypes.contains { contentType in
+                        contentType.identifier == "com.compuserve.gif" ||
+                        contentType.conforms(to: .gif)
+                    }
+                    if isGIF {
+                        mediaItem.originalImageFormat = .gif
+                        mediaItem.fileExtension = "gif"
+                    } else {
+                        mediaItem.originalImageFormat = .jpeg
+                        mediaItem.fileExtension = "jpg"
+                    }
                 }
                 
                 if let image = UIImage(data: data) {
@@ -502,6 +543,29 @@ struct CompressionViewImage: View {
                     let frames = await AVIFCompressor.detectFrameCount(avifData: data)
                     await MainActor.run {
                         mediaItem.avifFrameCount = frames
+                    }
+                }
+            }
+            
+            // 检测GIF动画
+            let isGIF = item.supportedContentTypes.contains { contentType in
+                contentType.identifier == "com.compuserve.gif" ||
+                contentType.conforms(to: .gif)
+            }
+            if isGIF {
+                Task {
+                    if let animatedImage = SDAnimatedImage(data: data) {
+                        let frameCount = animatedImage.animatedImageFrameCount
+                        let isAnimated = frameCount > 1
+                        print("📊 [LoadImage] GIF 检测完成 - 动画: \(isAnimated), 帧数: \(frameCount)")
+                        
+                        await MainActor.run {
+                            mediaItem.isAnimatedGIF = isAnimated
+                            mediaItem.gifFrameCount = Int(frameCount)
+                            if isAnimated {
+                                mediaItem.infoMessage = gifAnimationMessage(preserve: settings.preserveAnimatedGIF, frameCount: Int(frameCount))
+                            }
+                        }
                     }
                 }
             }
@@ -625,6 +689,9 @@ struct CompressionViewImage: View {
             } else if item.originalImageFormat == .avif {
                 // AVIF 始终保持 AVIF 格式
                 outputFormat = .avif
+            } else if item.originalImageFormat == .gif {
+                // GIF 始终保持 GIF 格式
+                outputFormat = .gif
             } else if settings.preferHEIC && item.originalImageFormat == .heic {
                 // 开启 HEIC 优先，且原图是 HEIC，保持 HEIC
                 outputFormat = .heic
@@ -658,6 +725,23 @@ struct CompressionViewImage: View {
                         }
                     }
                     print("📊 [CompressionView] 检测到 WebP - 动画: \(frameCount > 1), 帧数: \(frameCount)")
+                }
+            }
+            
+            // 检测是否是动画 GIF
+            if outputFormat == .gif {
+                if let animatedImage = SDAnimatedImage(data: originalData) {
+                    let frameCount = animatedImage.animatedImageFrameCount
+                    await MainActor.run {
+                        item.isAnimatedGIF = frameCount > 1
+                        item.gifFrameCount = Int(frameCount)
+                        
+                        // 如果是动画GIF，显示提示
+                        if frameCount > 1 {
+                            item.infoMessage = gifAnimationMessage(preserve: settings.preserveAnimatedGIF, frameCount: Int(frameCount))
+                        }
+                    }
+                    print("📊 [CompressionView] 检测到 GIF - 动画: \(frameCount > 1), 帧数: \(frameCount)")
                 }
             }
             
@@ -695,6 +779,10 @@ struct CompressionViewImage: View {
                     if item.isAnimatedAVIF {
                         item.preservedAnimation = true
                         item.infoMessage = "Animated AVIF preserved (no size reduction)"
+                    }
+                    if item.isAnimatedGIF {
+                        item.preservedAnimation = true
+                        item.infoMessage = "Animated GIF preserved (no size reduction)"
                     }
                 } else {
                     print("✅ [Compression Check] Compression successful, reduced from \(originalData.count) bytes to \(compressed.count) bytes")
@@ -734,7 +822,22 @@ struct CompressionViewImage: View {
                             item.infoMessage = "Animation removed during AVIF re-encode"
                         }
                     }
-                    if !item.isAnimatedAVIF && !item.isAnimatedWebP {
+                    if item.isAnimatedGIF && outputFormat == .gif {
+                        if let compressedAnimated = SDAnimatedImage(data: compressed) {
+                            let compressedFrameCount = compressedAnimated.animatedImageFrameCount
+                            item.preservedAnimation = compressedFrameCount > 1
+                            item.gifFrameCount = Int(compressedFrameCount)
+                            print("📊 [CompressionView] 压缩后 GIF - 帧数: \(compressedFrameCount), 保留动画: \(item.preservedAnimation)")
+                            
+                            // 设置 GIF 动画相关提示
+                            if item.preservedAnimation {
+                                item.infoMessage = "Animated GIF re-encoded (\(item.gifFrameCount) frames preserved)"
+                            } else {
+                                item.infoMessage = "Animation removed during GIF re-encode"
+                            }
+                        }
+                    }
+                    if !item.isAnimatedAVIF && !item.isAnimatedWebP && !item.isAnimatedGIF {
                         item.infoMessage = nil
                     }
                 }
@@ -773,6 +876,18 @@ struct CompressionViewImage: View {
             }
         } else {
             return "Animated WebP detected — will convert to static"
+        }
+    }
+    
+    private func gifAnimationMessage(preserve: Bool, frameCount: Int = 0) -> String {
+        if preserve {
+            if frameCount > 0 {
+                return "Animated GIF detected (\(frameCount) frames) — will preserve animation"
+            } else {
+                return "Animated GIF detected — will preserve animation"
+            }
+        } else {
+            return "Animated GIF detected — will convert to static"
         }
     }
 }
