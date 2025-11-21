@@ -19,7 +19,7 @@ struct FormatMainView: View {
                             .frame(width: 40)
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Image")
+                            Text("Image Format Conversion")
                                 .font(.headline)
                             Text("JPEG, PNG, WebP, HEIC, AVIF")
                                 .font(.caption)
@@ -37,7 +37,7 @@ struct FormatMainView: View {
                             .frame(width: 40)
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Video")
+                            Text("Video Format Conversion")
                                 .font(.headline)
                             Text("MP4, MOV, M4V")
                                 .font(.caption)
@@ -55,7 +55,7 @@ struct FormatMainView: View {
                             .frame(width: 40)
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Audio")
+                            Text("Audio Format Conversion")
                                 .font(.headline)
                             Text("MP3, AAC, M4A, OPUS, FLAC, WAV")
                                 .font(.caption)
