@@ -716,7 +716,7 @@ struct CompressionViewImage: View {
                         
                         // 如果是大型动画且保留动画，显示编码提示
                         if frameCount > 1 && settings.preserveAnimatedWebP {
-                            if frameCount > 100 {
+                            if frameCount > 30 {
                                 let estimatedSeconds = Int(frameCount) / 2
                                 item.infoMessage = "Encoding \(Int(frameCount)) frames (~\(estimatedSeconds)s), please wait..."
                             } else {
@@ -867,7 +867,7 @@ struct CompressionViewImage: View {
     
     private func webpAnimationMessage(preserve: Bool, frameCount: Int = 0) -> String {
         if preserve {
-            if frameCount > 100 {
+            if frameCount > 30 {
                 return "Animated WebP detected (\(frameCount) frames) — will preserve frames (may take longer)"
             } else if frameCount > 0 {
                 return "Animated WebP detected (\(frameCount) frames) — will preserve frames"

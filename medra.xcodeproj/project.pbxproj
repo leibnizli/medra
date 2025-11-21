@@ -10,6 +10,19 @@
 		7126CBA46EF1753481704769 /* Pods_medra.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 88576F087C422A5FDFECE2AC /* Pods_medra.framework */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		84D9E17D2ED0D03100C3312F /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		7F79AD84530E746CAB2D9623 /* Pods-medra.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-medra.debug.xcconfig"; path = "Target Support Files/Pods-medra/Pods-medra.debug.xcconfig"; sourceTree = "<group>"; };
 		841407F02ECE18CF00437DA1 /* medra.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = medra.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -27,11 +40,39 @@
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		8488EE6F2ED0DDCB00D18FBF /* Exceptions for "medra" folder in "Embed Frameworks" phase from "medra" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			attributesByRelativePath = {
+				ffmpeg/ffmpegkit.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libavcodec.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libavdevice.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libavfilter.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libavformat.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libavutil.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libswresample.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+				ffmpeg/libswscale.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
+			};
+			buildPhase = 84D9E17D2ED0D03100C3312F /* Embed Frameworks */;
+			membershipExceptions = (
+				ffmpeg/ffmpegkit.xcframework,
+				ffmpeg/libavcodec.xcframework,
+				ffmpeg/libavdevice.xcframework,
+				ffmpeg/libavfilter.xcframework,
+				ffmpeg/libavformat.xcframework,
+				ffmpeg/libavutil.xcframework,
+				ffmpeg/libswresample.xcframework,
+				ffmpeg/libswscale.xcframework,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		841407F22ECE18CF00437DA1 /* medra */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				841409262ECE19DA00437DA1 /* Exceptions for "medra" folder in "medra" target */,
+				8488EE6F2ED0DDCB00D18FBF /* Exceptions for "medra" folder in "Embed Frameworks" phase from "medra" target */,
 			);
 			path = medra;
 			sourceTree = "<group>";
@@ -97,6 +138,7 @@
 				841407ED2ECE18CF00437DA1 /* Frameworks */,
 				841407EE2ECE18CF00437DA1 /* Resources */,
 				51762B5F44E498E007959F10 /* [CP] Embed Pods Frameworks */,
+				84D9E17D2ED0D03100C3312F /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -344,6 +386,10 @@
 				DEVELOPMENT_TEAM = XTWM4R2294;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/medra/ffmpeg",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = medra/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Medra;
@@ -390,6 +436,10 @@
 				DEVELOPMENT_TEAM = XTWM4R2294;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/medra/ffmpeg",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = medra/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Medra;

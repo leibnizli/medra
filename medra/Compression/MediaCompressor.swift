@@ -437,7 +437,7 @@ final class MediaCompressor {
         print("📊 [WebP] 原始动画信息 - 帧数: \(frameCount), 循环次数: \(animatedImage.animatedImageLoopCount), 原始大小: \(originalSize) bytes")
         
         // 警告：大文件处理
-        if frameCount > 100 {
+        if frameCount > 30 {
             print("⚠️ [WebP] 警告：检测到大型动画文件（\(frameCount) 帧），编码可能需要较长时间")
         }
         
@@ -484,7 +484,7 @@ final class MediaCompressor {
         print("💡 [WebP] 提示：原始文件可能是无损 WebP，重新编码为有损格式")
         
         // 大文件时间预估
-        if frameCount > 100 {
+        if frameCount > 30 {
             let estimatedSeconds = frameCount / 2  // 粗略估计：每秒处理约2帧
             print("⏳ [WebP] 开始编码 \(frames.count) 帧，预计需要约 \(estimatedSeconds) 秒，请稍候...")
         } else {

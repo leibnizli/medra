@@ -122,9 +122,9 @@ class FFmpegAudioCompressor {
                 if errorMessage.contains("Unknown encoder") || errorMessage.contains("Encoder not found") {
                     errorDescription = "Encoder '\(audioFormat.encoderName)' not available. Please try AAC, M4A, FLAC, or WAV format."
                 } else if errorMessage.contains("libmp3lame") {
-                    errorDescription = "MP3 encoder not available. Please try AAC or M4A format instead."
+                    errorDescription = "MP3 encoder not available. Please try AAC format instead."
                 } else if errorMessage.contains("libopus") {
-                    errorDescription = "OPUS encoder not available. Please try AAC or M4A format instead."
+                    errorDescription = "OPUS encoder not available. Please try AAC format instead."
                 }
                 
                 safeCompletion(.failure(NSError(domain: "FFmpeg", code: Int(returnCode?.getValue() ?? -1), userInfo: [NSLocalizedDescriptionKey: errorDescription])))

@@ -1,5 +1,4 @@
 PODS:
-  - ffmpeg-kit-ios-full (6.0)
   - libaom (3.0.0):
     - libvmaf (>= 2.2.0)
   - libavif (0.11.1):
@@ -28,7 +27,6 @@ PODS:
     - SDWebImage/Core (~> 5.17)
 
 DEPENDENCIES:
-  - ffmpeg-kit-ios-full (from `https://raw.githubusercontent.com/luthviar/ffmpeg-kit-ios-full/main/ffmpeg-kit-ios-full.podspec`)
   - libavif
   - mozjpeg (~> 3.3)
   - SDWebImageWebPCoder (~> 0.14.6)
@@ -43,12 +41,7 @@ SPEC REPOS:
     - SDWebImage
     - SDWebImageWebPCoder
 
-EXTERNAL SOURCES:
-  ffmpeg-kit-ios-full:
-    :podspec: https://raw.githubusercontent.com/luthviar/ffmpeg-kit-ios-full/main/ffmpeg-kit-ios-full.podspec
-
 SPEC CHECKSUMS:
-  ffmpeg-kit-ios-full: 2da77324b0e9fb007195ab6661f64be4cf31dc12
   libaom: 144606b1da4b5915a1054383c3a4459ccdb3c661
   libavif: 84bbb62fb232c3018d6f1bab79beea87e35de7b7
   libvmaf: 27f523f1e63c694d14d534cd0fddd2fab0ae8711
@@ -57,6 +50,6 @@ SPEC CHECKSUMS:
   SDWebImage: 16309af6d214ba3f77a7c6f6fdda888cb313a50a
   SDWebImageWebPCoder: e38c0a70396191361d60c092933e22c20d5b1380
 
-PODFILE CHECKSUM: 5bd2634c21f889b76387eb61da7cb4946a4073ae
+PODFILE CHECKSUM: c13258170ef59969633d958bb948425855d69ec1
 
 COCOAPODS: 1.16.2
