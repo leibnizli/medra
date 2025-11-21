@@ -337,6 +337,159 @@ struct AVIFCompressor {
         }
     }
     
+    /// Compress a sequence of image files into an animated AVIF using libavif
+    /// - Parameters:
+    ///   - imagePaths: List of file URLs for each frame (ordered)
+    ///   - fps: Frame rate of the animation
+    ///   - quality: Quality value 0.1-1.0
+    ///   - speedPreset: Encoding speed preset
+    ///   - progressHandler: Optional progress callback
+    /// - Returns: Compressed AVIF data or nil if failed
+    static func compressAnimation(
+        from imagePaths: [URL],
+        fps: Double,
+        quality: Double = 0.85,
+        speedPreset: AVIFSpeedPreset = .balanced,
+        progressHandler: ((Float) -> Void)? = nil
+    ) async -> AVIFCompressionResult? {
+        guard !imagePaths.isEmpty else { return nil }
+        
+        print("🎬 [AVIF] Starting animation compression from \(imagePaths.count) frames at \(fps) fps")
+        progressHandler?(0.05)
+        
+        // Background progress ticker
+        let progressTicker: Task<Void, Never>?
+        if let progressHandler {
+            progressTicker = Task.detached(priority: .background) {
+                var current: Float = 0.05
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                    if Task.isCancelled { break }
+                    current = min(current + 0.02, 0.95)
+                    progressHandler(current)
+                }
+            }
+        } else {
+            progressTicker = nil
+        }
+        
+        defer { progressTicker?.cancel() }
+        
+        guard let encoder = avifEncoderCreate() else {
+            print("❌ [AVIF] Failed to create avifEncoder")
+            return nil
+        }
+        defer { avifEncoderDestroy(encoder) }
+        
+        let quantizer = quantizerValue(for: quality)
+        let quantizerValue = Int32(quantizer)
+        encoder.pointee.minQuantizer = quantizerValue
+        encoder.pointee.maxQuantizer = quantizerValue
+        encoder.pointee.minQuantizerAlpha = quantizerValue
+        encoder.pointee.maxQuantizerAlpha = quantizerValue
+        encoder.pointee.speed = Int32(speedPreset.cpuUsedValue)
+        encoder.pointee.maxThreads = Int32(max(1, ProcessInfo.processInfo.processorCount))
+        encoder.pointee.autoTiling = AVIF_TRUE
+        
+        // Set timescale to a high precision value (e.g. 1000 or 600) to handle various frame rates
+        // Duration in timescales = timescale / fps
+        let timescale: UInt64 = 600
+        encoder.pointee.timescale = timescale
+        
+        let durationInTimescales = UInt64(Double(timescale) / fps)
+        
+        var firstImageSize: Int = 0
+        
+        for (index, imagePath) in imagePaths.enumerated() {
+            autoreleasepool {
+                guard let image = UIImage(contentsOfFile: imagePath.path) else {
+                    print("⚠️ [AVIF] Failed to load frame at \(imagePath.path)")
+                    return
+                }
+                
+                if index == 0 {
+                    firstImageSize = image.pngData()?.count ?? 0
+                }
+                
+                guard let cgImage = createCGImage(from: image.fixOrientation()) else {
+                    print("⚠️ [AVIF] Failed to create CGImage for frame \(index)")
+                    return
+                }
+                
+                guard let avifImage = avifImageCreate(UInt32(cgImage.width),
+                                                      UInt32(cgImage.height),
+                                                      8,
+                                                      AVIF_PIXEL_FORMAT_YUV420) else { // Use YUV420 for video-like compatibility
+                    print("❌ [AVIF] Failed to create avifImage for frame \(index)")
+                    return
+                }
+                defer { avifImageDestroy(avifImage) }
+                
+                avifImage.pointee.colorPrimaries = avifColorPrimaries(UInt16(AVIF_COLOR_PRIMARIES_BT709))
+                avifImage.pointee.transferCharacteristics = avifTransferCharacteristics(UInt16(AVIF_TRANSFER_CHARACTERISTICS_SRGB))
+                avifImage.pointee.matrixCoefficients = avifMatrixCoefficients(UInt16(AVIF_MATRIX_COEFFICIENTS_BT709))
+                avifImage.pointee.yuvRange = AVIF_RANGE_FULL
+                
+                // Convert RGB to YUV
+                guard let (rgbaData, rowBytes) = makeRGBABuffer(from: cgImage) else {
+                    print("❌ [AVIF] Failed to make RGBA buffer for frame \(index)")
+                    return
+                }
+                
+                var rgbImage = avifRGBImage()
+                avifRGBImageSetDefaults(&rgbImage, avifImage)
+                rgbImage.format = AVIF_RGB_FORMAT_RGBA
+                rgbImage.depth = 8
+                rgbImage.rowBytes = UInt32(rowBytes)
+                rgbImage.alphaPremultiplied = AVIF_TRUE
+                
+                let conversionSuccess: Bool = rgbaData.withUnsafeBytes { rawBuffer in
+                    guard let baseAddress = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return false }
+                    rgbImage.pixels = UnsafeMutablePointer<UInt8>(mutating: baseAddress)
+                    return avifImageRGBToYUV(avifImage, &rgbImage) == AVIF_RESULT_OK
+                }
+                
+                if !conversionSuccess {
+                    print("❌ [AVIF] RGB to YUV conversion failed for frame \(index)")
+                    return
+                }
+                
+                let addResult = avifEncoderAddImage(encoder, avifImage, durationInTimescales, avifAddImageFlags(0))
+                if addResult != AVIF_RESULT_OK {
+                    let message = avifResultToString(addResult).flatMap { String(cString: $0) } ?? "unknown error"
+                    print("❌ [AVIF] Failed to add frame \(index): \(message)")
+                    return
+                }
+            }
+            
+            // Update progress roughly
+            if index % 5 == 0 {
+                let progress = 0.05 + (Double(index) / Double(imagePaths.count)) * 0.8
+                progressHandler?(Float(progress))
+            }
+        }
+        
+        var output = avifRWData(data: nil, size: 0)
+        defer { avifRWDataFree(&output) }
+        
+        let finishResult = avifEncoderFinish(encoder, &output)
+        guard finishResult == AVIF_RESULT_OK, let encodedPtr = output.data else {
+            let message = avifResultToString(finishResult).flatMap { String(cString: $0) } ?? "unknown error"
+            print("❌ [AVIF] avifEncoderFinish failed: \(message)")
+            return nil
+        }
+        
+        let compressedData = Data(bytes: encodedPtr, count: output.size)
+        print("✅ [AVIF] Animation compression success - \(compressedData.count) bytes")
+        progressHandler?(1.0)
+        
+        return AVIFCompressionResult(
+            data: compressedData,
+            originalSize: firstImageSize * imagePaths.count, // Rough estimate
+            compressedSize: compressedData.count
+        )
+    }
+
     /// Calculate CRF value from quality percentage
     /// Quality 100% → CRF 10 (best)
     /// Quality 85% → CRF 23 (recommended default)

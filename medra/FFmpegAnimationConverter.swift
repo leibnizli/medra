@@ -36,6 +36,23 @@ class FFmpegAnimationConverter {
         let asset = AVURLAsset(url: inputURL)
         let duration = CMTimeGetSeconds(asset.duration)
         
+        // Thread-safe state container
+        class ConversionState: @unchecked Sendable {
+            var hasCompleted = false
+            let lock = NSLock()
+        }
+        let state = ConversionState()
+        
+        let safeCompletion: (Result<URL, Error>) -> Void = { result in
+            state.lock.lock()
+            defer { state.lock.unlock() }
+            
+            if !state.hasCompleted {
+                state.hasCompleted = true
+                completion(result)
+            }
+        }
+        
         var command = ""
         
         switch format {
@@ -48,13 +65,84 @@ class FFmpegAnimationConverter {
             command = "-i \"\(inputPath)\" -c:v libwebp -loop 0 -an -preset default -q:v 75 \"\(outputPath)\""
             
         case .avif:
-            // ffmpeg -i input.mp4 -c:v libaom-av1 -still-picture 0 -an output.avif
-            // Note: standard ffmpeg might use libaom-av1 or librav1e. 
-            // The user suggested: ffmpeg -i 1.mp4 -pix_fmt yuv420p -f yuv4mpegpipe output.y4m && avifenc output.y4m animated.avif
-            // Since we are using ffmpeg-kit, we try to use what's available. 
-            // We'll try a standard command first. If libaom-av1 is not available, this might fail.
-            // -strict experimental might be needed for some encoders.
-            command = "-i \"\(inputPath)\" -c:v libaom-av1 -strict experimental -pix_fmt yuv420p -an \"\(outputPath)\""
+            // Direct AVIF conversion using FFmpeg with libaom-av1
+            // This is the fastest method as it avoids intermediate files
+            
+            // First, detect frame count for user feedback
+            Task.detached(priority: .userInitiated) {
+                let frameCountCommand = "-v error -select_streams v:0 -count_frames -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 \"\(inputPath)\""
+                let probeSession = FFprobeKit.execute(frameCountCommand)
+                
+                var frameCountMessage = ""
+                if let output = probeSession?.getOutput()?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   let frameCount = Int(output), frameCount > 0 {
+                    frameCountMessage = "\(frameCount) frames detected, please be patient..."
+                    print("🎬 [FFmpeg Animation] Detected \(frameCount) frames")
+                } else {
+                    frameCountMessage = "Processing animation, please be patient..."
+                }
+                
+                // Update UI with frame count info
+                DispatchQueue.main.async {
+                    print("📊 [FFmpeg Animation] \(frameCountMessage)")
+                    progressHandler(0.01)
+                }
+                
+                // Command to convert directly to AVIF
+                // -c:v libaom-av1: Use AV1 codec
+                // -cpu-used 8: Fastest encoding speed (0-8, 8 is fastest)
+                // -crf 20: High quality (lower is better, typical range 15-35)
+                // -f avif: Force AVIF format
+                let command = "-i \"\(inputPath)\" -c:v libaom-av1 -cpu-used 8 -crf 20 -f avif \"\(outputPath)\""
+                
+                print("🎬 [FFmpeg Animation] Converting to AVIF")
+                print("📝 [FFmpeg Animation] Command: ffmpeg \(command)")
+                
+                FFmpegKit.executeAsync(command, withCompleteCallback: { session in
+                    guard let session = session else {
+                        safeCompletion(.failure(NSError(domain: "FFmpeg", code: -1, userInfo: [NSLocalizedDescriptionKey: "Session creation failed"])))
+                        return
+                    }
+                    
+                    let returnCode = session.getReturnCode()
+                    
+                    if ReturnCode.isSuccess(returnCode) {
+                        print("✅ [FFmpeg Animation] AVIF conversion successful")
+                        safeCompletion(.success(outputURL))
+                    } else {
+                        let errorMessage = session.getOutput() ?? "Unknown error"
+                        print("❌ [FFmpeg Animation] AVIF conversion failed: \(errorMessage)")
+                        safeCompletion(.failure(NSError(domain: "FFmpeg", code: Int(returnCode?.getValue() ?? -1), userInfo: [NSLocalizedDescriptionKey: "AVIF conversion failed: \(errorMessage)"])))
+                    }
+                }, withLogCallback: { log in
+                    guard let log = log else { return }
+                    let message = log.getMessage() ?? ""
+                    
+                    // Parse progress information
+                    if message.contains("time=") {
+                        if let timeRange = message.range(of: "time=([0-9:.]+)", options: .regularExpression) {
+                            let timeString = String(message[timeRange]).replacingOccurrences(of: "time=", with: "")
+                            if let currentTime = parseTimeString(timeString), duration > 0 {
+                                let progress = Float(currentTime / duration)
+                                DispatchQueue.main.async {
+                                    progressHandler(min(progress, 0.99))
+                                }
+                            }
+                        }
+                    }
+                }, withStatisticsCallback: { statistics in
+                    guard let statistics = statistics else { return }
+                    let time = Double(statistics.getTime()) / 1000.0
+                    if duration > 0 {
+                        let progress = Float(time / duration)
+                        DispatchQueue.main.async {
+                            progressHandler(min(progress, 0.99))
+                        }
+                    }
+                })
+            }
+            
+            return
             
         case .gif:
             // ffmpeg -i input.mp4 -vf "fps=15,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop 0 output.gif
@@ -66,19 +154,6 @@ class FFmpegAnimationConverter {
         
         print("🎬 [FFmpeg Animation] Starting conversion to \(format.rawValue)")
         print("📝 [FFmpeg Animation] Command: ffmpeg \(command)")
-        
-        var hasCompleted = false
-        let completionLock = NSLock()
-        
-        let safeCompletion: (Result<URL, Error>) -> Void = { result in
-            completionLock.lock()
-            defer { completionLock.unlock() }
-            
-            if !hasCompleted {
-                hasCompleted = true
-                completion(result)
-            }
-        }
         
         FFmpegKit.executeAsync(command, withCompleteCallback: { session in
             guard let session = session else {
