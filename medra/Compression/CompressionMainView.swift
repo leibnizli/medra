@@ -75,5 +75,5 @@ struct CompressionMainView: View {
 }
 
 #Preview {
-    FormatMainView()
+    CompressionMainView()
 }

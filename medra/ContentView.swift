@@ -14,13 +14,9 @@ struct ContentView: View {
                 .tabItem {
                     Label("Compress", systemImage: "bolt.fill")
                 }
-//            ResolutionView()
-//                .tabItem {
-//                    Label("Resolution", systemImage: "arrow.up.left.and.arrow.down.right")
-//                }
-            FormatMainView()
+            ConvertMainView()
                 .tabItem {
-                    Label("Format", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Convert", systemImage: "arrow.triangle.2.circlepath")
                 }
         }
         .environment(\.horizontalSizeClass, .compact)
