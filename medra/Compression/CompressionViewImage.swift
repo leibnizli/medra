@@ -717,7 +717,7 @@ struct CompressionViewImage: View {
                         // 如果是大型动画且保留动画，显示编码提示
                         if frameCount > 1 && settings.preserveAnimatedWebP {
                             if frameCount > 30 {
-                                let estimatedSeconds = Int(frameCount) / 2
+                                let estimatedSeconds = Int(frameCount) * 2
                                 item.infoMessage = "Encoding \(Int(frameCount)) frames (~\(estimatedSeconds)s), please wait..."
                             } else {
                                 item.infoMessage = "Encoding \(Int(frameCount)) frames, please wait..."
