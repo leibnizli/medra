@@ -21,7 +21,7 @@ struct FormatMainView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Image Format Conversion")
                                 .font(.headline)
-                            Text("JPEG, PNG, WebP, HEIC, AVIF")
+                            Text("JPEG, PNG, GIF, WebP, HEIC, AVIF")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

@@ -165,7 +165,7 @@ struct FormatItemRow: View {
                                         .foregroundStyle(.secondary)
                                     
                                     // 显示动画标志
-                                    if item.isAnimatedWebP || item.isAnimatedAVIF {
+                                    if item.isAnimatedWebP || item.isAnimatedAVIF || item.isAnimatedGIF {
                                         Image(systemName: "film.fill")
                                             .font(.caption2)
                                             .foregroundStyle(.orange)
@@ -179,12 +179,13 @@ struct FormatItemRow: View {
                         
                         
                         // 转换规则说明（独立一行）
-                        if (item.isAnimatedWebP || item.isAnimatedAVIF), let target = targetFormat {
+                        if (item.isAnimatedWebP || item.isAnimatedAVIF || item.isAnimatedGIF), let target = targetFormat {
                             let sourceFormat = item.originalImageFormat
                             
                             // 检查是否为同格式转换
                             let isSameFormat = (item.isAnimatedWebP && sourceFormat == .webp && target == .webp) ||
-                                              (item.isAnimatedAVIF && sourceFormat == .avif && target == .avif)
+                                              (item.isAnimatedAVIF && sourceFormat == .avif && target == .avif) ||
+                                              (item.isAnimatedGIF && sourceFormat == .gif && target == .gif)
                             
                             // 根据转换状态调整文案
                             let isCompleted = item.status == .completed

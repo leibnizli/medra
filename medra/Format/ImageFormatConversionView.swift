@@ -95,6 +95,7 @@ struct ImageFormatConversionView: View {
                         Text("HEIC").tag(ImageFormat.heic)
                         Text("WebP").tag(ImageFormat.webp)
                         Text("AVIF").tag(ImageFormat.avif)
+                        Text("GIF").tag(ImageFormat.gif)
                     }
                     .pickerStyle(.menu)
                 }
@@ -245,7 +246,8 @@ struct ImageFormatConversionView: View {
         
         // 检测同格式动画转换：直接返回原文件
         let isSameFormatAnimated = (isAnimated && sourceFormat == .webp && outputFormat == .webp) ||
-                                   (isAnimatedAVIF && sourceFormat == .avif && outputFormat == .avif)
+                                   (isAnimatedAVIF && sourceFormat == .avif && outputFormat == .avif) ||
+                                   (isAnimated && sourceFormat == .gif && outputFormat == .gif)
         
         if isSameFormatAnimated {
             print("[convertImage] 检测到同格式动画转换，直接返回原文件")
@@ -750,6 +752,8 @@ struct ImageFormatConversionView: View {
                         } else if let avifType = UTType(filenameExtension: "avif"), type.conforms(to: avifType) {
                             mediaItem.originalImageFormat = .avif
                             mediaItem.fileExtension = "avif"
+                        } else if type.conforms(to: .gif) {
+                            mediaItem.originalImageFormat = .gif
                         } else {
                             mediaItem.originalImageFormat = .jpeg
                         }
@@ -763,6 +767,8 @@ struct ImageFormatConversionView: View {
                             mediaItem.originalImageFormat = .webp
                         case "avif":
                             mediaItem.originalImageFormat = .avif
+                        case "gif":
+                            mediaItem.originalImageFormat = .gif
                         default:
                             mediaItem.originalImageFormat = .jpeg
                         }
@@ -774,8 +780,8 @@ struct ImageFormatConversionView: View {
                         mediaItem.status = .pending
                     }
                     
-                    // 检测动画（WebP 和 AVIF）
-                    if mediaItem.originalImageFormat == .webp || mediaItem.originalImageFormat == .avif {
+                    // 检测动画（WebP、AVIF 和 GIF）
+                    if mediaItem.originalImageFormat == .webp || mediaItem.originalImageFormat == .avif || mediaItem.originalImageFormat == .gif {
                         let animatedImage = SDAnimatedImage(data: data)
                         let frameCount = animatedImage?.animatedImageFrameCount ?? 0
                         let isAnimatedAVIF = MediaCompressor.isAnimatedAVIF(data: data)
@@ -792,6 +798,10 @@ struct ImageFormatConversionView: View {
                                 mediaItem.avifFrameCount = count
                                 print("[loadFilesFromURLs] 检测到动画 AVIF，帧数: \(count)")
                             }
+                        } else if mediaItem.originalImageFormat == .gif && frameCount > 1 {
+                            mediaItem.isAnimatedGIF = true
+                            mediaItem.gifFrameCount = Int(frameCount)
+                            print("[loadFilesFromURLs] 检测到动画 GIF，帧数: \(frameCount)")
                         }
                     }
                 }
@@ -837,6 +847,10 @@ struct ImageFormatConversionView: View {
                     }
                     return false
                 }
+                let isGIF = item.supportedContentTypes.contains { contentType in
+                    contentType.identifier == "com.compuserve.gif" ||
+                    contentType.conforms(to: .gif)
+                }
                 
                 if isPNG {
                     mediaItem.originalImageFormat = .png
@@ -850,6 +864,9 @@ struct ImageFormatConversionView: View {
                 } else if isAVIF {
                     mediaItem.originalImageFormat = .avif
                     mediaItem.fileExtension = "avif"
+                } else if isGIF {
+                    mediaItem.originalImageFormat = .gif
+                    mediaItem.fileExtension = "gif"
                 } else {
                     mediaItem.originalImageFormat = .jpeg
                     mediaItem.fileExtension = "jpg"
@@ -860,8 +877,8 @@ struct ImageFormatConversionView: View {
                     mediaItem.originalResolution = image.size
                 }
                 
-                // 检测动画（WebP 和 AVIF）
-                if isWebP || isAVIF {
+                // 检测动画（WebP、AVIF 和 GIF）
+                if isWebP || isAVIF || isGIF {
                     let animatedImage = SDAnimatedImage(data: data)
                     let frameCount = animatedImage?.animatedImageFrameCount ?? 0
                     let isAnimatedAVIF = MediaCompressor.isAnimatedAVIF(data: data)
@@ -878,6 +895,10 @@ struct ImageFormatConversionView: View {
                             mediaItem.avifFrameCount = count
                             print("[loadImageItem] 检测到动画 AVIF，帧数: \(count)")
                         }
+                    } else if isGIF && frameCount > 1 {
+                        mediaItem.isAnimatedGIF = true
+                        mediaItem.gifFrameCount = Int(frameCount)
+                        print("[loadImageItem] 检测到动画 GIF，帧数: \(frameCount)")
                     }
                 }
                 
