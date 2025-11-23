@@ -15,6 +15,17 @@ struct CompressionItemRow: View {
     @State private var showingToast = false
     
     var body: some View {
+        // 根据文件类型获取输出格式
+        let outputFormat: String = {
+            if item.isImage {
+                return item.outputImageFormat?.rawValue.uppercased() ?? ""
+            } else if item.isVideo {
+                return item.outputVideoFormat?.uppercased() ?? ""
+            } else if item.isAudio {
+                return item.outputAudioFormat?.rawValue.uppercased() ?? ""
+            }
+            return ""
+        }()
         VStack(alignment: .leading, spacing: 0) {
             // 音频播放进度条（仅在播放时显示）
             if item.isAudio && audioPlayer.isCurrentAudio(itemId: item.id) {
@@ -104,18 +115,6 @@ struct CompressionItemRow: View {
                                         return item.fileExtension.uppercased()
                                     } else if item.isAudio {
                                         return item.fileExtension.uppercased()
-                                    }
-                                    return ""
-                                }()
-                                
-                                // 根据文件类型获取输出格式
-                                let outputFormat: String = {
-                                    if item.isImage {
-                                        return item.outputImageFormat?.rawValue.uppercased() ?? ""
-                                    } else if item.isVideo {
-                                        return item.outputVideoFormat?.uppercased() ?? ""
-                                    } else if item.isAudio {
-                                        return item.outputAudioFormat?.rawValue.uppercased() ?? ""
                                     }
                                     return ""
                                 }()
@@ -688,7 +687,7 @@ struct CompressionItemRow: View {
                     VStack(spacing: 8) {
                         HStack(spacing: 8) {
                             // Photos 按钮（仅图片和视频，排除10-bit视频）
-                            if shouldShowPhotosButton {
+                            if (outputFormat != "AVIF" && outputFormat != "WEBP" && shouldShowPhotosButton) {
                                 Button(action: { saveToPhotos(item) }) {
                                     HStack(spacing: 4) {
                                         Image(systemName: "photo.badge.arrow.down")

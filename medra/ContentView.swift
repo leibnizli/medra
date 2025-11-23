@@ -14,9 +14,9 @@ struct ContentView: View {
                 .tabItem {
                     Label("Compress", systemImage: "bolt.fill")
                 }
-            ConvertMainView()
+            TransformMainView()
                 .tabItem {
-                    Label("Convert", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Transform", systemImage: "arrow.triangle.2.circlepath")
                 }
         }
         .environment(\.horizontalSizeClass, .compact)

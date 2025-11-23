@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct ConvertMainView: View {
+struct TransformMainView: View {
     var body: some View {
         NavigationView {
             List {
@@ -84,6 +84,24 @@ struct ConvertMainView: View {
                         }
                         .padding(.vertical, 8)
                     }
+                    
+                    NavigationLink(destination: VideoToAudioView()) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "waveform.circle.fill")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.teal)
+                                .frame(width: 40)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Video to Audio")
+                                    .font(.headline)
+                                Text("Extract audio from video")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
                 }
                 Section(header: Text("Media resolution")) {
                     NavigationLink(destination: ResolutionView()) {
@@ -98,5 +116,5 @@ struct ConvertMainView: View {
 }
 
 #Preview {
-    ConvertMainView()
+    TransformMainView()
 }
