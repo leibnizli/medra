@@ -10,13 +10,17 @@ import SwiftUI
 struct ContentView: View {
     var body: some View {
         TabView {
-            CompressionMainView()
+            VideoMainView()
                 .tabItem {
-                    Label("Compress", systemImage: "arrow.down.forward.and.arrow.up.backward")
+                    Label("Video", systemImage: "video")
                 }
-            TransformMainView()
+            ImageMainView()
+                    .tabItem {
+                        Label("Image", systemImage: "photo")
+                    }
+            AudioMainView()
                 .tabItem {
-                    Label("Transform", systemImage: "wand.and.stars")
+                    Label("Audio", systemImage: "waveform")
                 }
         }
         .environment(\.horizontalSizeClass, .compact)
