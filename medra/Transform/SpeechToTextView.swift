@@ -20,7 +20,30 @@ struct SpeechToTextView: View {
     @State private var isCopied = false
     
     // Speech Recognition
-    @State private var speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")) // Default to English
+
+
+    // MARK: - Language Support
+    struct Language: Identifiable, Hashable {
+        let id = UUID()
+        let name: String
+        let code: String
+    }
+    
+    let languages = [
+        Language(name: "English (US)", code: "en-US"),
+        Language(name: "Chinese (Simplified)", code: "zh-CN"),
+        Language(name: "Chinese (Traditional)", code: "zh-TW"),
+        Language(name: "Japanese", code: "ja-JP"),
+        Language(name: "Korean", code: "ko-KR"),
+        Language(name: "Spanish", code: "es-ES"),
+        Language(name: "French", code: "fr-FR"),
+        Language(name: "German", code: "de-DE"),
+        Language(name: "Italian", code: "it-IT"),
+        Language(name: "Portuguese", code: "pt-PT"),
+        Language(name: "Russian", code: "ru-RU")
+    ]
+    
+    @State private var selectedLanguageCode = "en-US"
 
     var body: some View {
         VStack(spacing: 20) {
@@ -120,6 +143,23 @@ struct SpeechToTextView: View {
     // MARK: - File Mode View
     var fileModeView: some View {
         VStack(spacing: 16) {
+            // Language Picker
+            HStack {
+                Text("Language:")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Picker("Language", selection: $selectedLanguageCode) {
+                    ForEach(languages) { language in
+                        Text(language.name).tag(language.code)
+                    }
+                }
+                .pickerStyle(MenuPickerStyle())
+                .background(Color(UIColor.secondarySystemBackground))
+                .cornerRadius(8)
+            }
+            .padding(.horizontal)
+
             Button(action: {
                 showFileImporter = true
             }) {
@@ -195,11 +235,21 @@ struct SpeechToTextView: View {
         isProcessing = true
         errorMessage = nil
         
+        // Initialize recognizer with selected locale
+        let recognizer = SFSpeechRecognizer(locale: Locale(identifier: selectedLanguageCode))
+        
+        guard let speechRecognizer = recognizer, speechRecognizer.isAvailable else {
+            errorMessage = "Speech recognition is not available for the selected language."
+            isProcessing = false
+            url.stopAccessingSecurityScopedResource()
+            return
+        }
+        
         let request = SFSpeechURLRecognitionRequest(url: url)
         // Force offline recognition if desired, but usually not strictly required unless network is an issue.
         // request.requiresOnDeviceRecognition = false 
         
-        speechRecognizer?.recognitionTask(with: request) { result, error in
+        speechRecognizer.recognitionTask(with: request) { result, error in
             DispatchQueue.main.async {
                 if let result = result {
                     self.transcription = result.bestTranscription.formattedString
