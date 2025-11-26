@@ -791,6 +791,9 @@ struct CompressionItemRow: View {
             let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
             guard status == .authorized || status == .limited else {
                 print("相册权限被拒绝")
+                await MainActor.run {
+                    showPermissionAlert()
+                }
                 return
             }
             
@@ -1012,6 +1015,29 @@ struct CompressionItemRow: View {
         }
         
         rootViewController.present(activityVC, animated: true)
+    }
+    
+    private func showPermissionAlert() {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              let rootViewController = window.rootViewController else {
+            return
+        }
+        
+        let alert = UIAlertController(
+            title: "Permission Denied",
+            message: "Please allow access to your Photos to save files.",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Go to Settings", style: .default) { _ in
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        })
+        
+        rootViewController.present(alert, animated: true)
     }
 }
 

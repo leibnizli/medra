@@ -540,8 +540,10 @@ struct FormatItemRow: View {
     
     private func saveToPhotos() async {
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-        guard status == .authorized else {
-            await showToast("Photo library permission required")
+        guard status == .authorized || status == .limited else {
+            await MainActor.run {
+                showPermissionAlert()
+            }
             return
         }
         
@@ -874,5 +876,28 @@ struct FormatItemRow: View {
                 showingToast = false
             }
         }
+    }
+    
+    private func showPermissionAlert() {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first,
+              let rootViewController = window.rootViewController else {
+            return
+        }
+        
+        let alert = UIAlertController(
+            title: "Permission Denied",
+            message: "Please allow access to your Photos to save files.",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Go to Settings", style: .default) { _ in
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        })
+        
+        rootViewController.present(alert, animated: true)
     }
 }
