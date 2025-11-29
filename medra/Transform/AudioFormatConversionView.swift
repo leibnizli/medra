@@ -291,20 +291,31 @@ struct AudioFormatConversionView: View {
         // 构建 FFmpeg 命令
         var command = "-i \"\(sourceURL.path)\""
         
-        switch targetFormat {
-        case .original:
-            // 不应该出现在格式转换中，使用copy保持原格式
+        
+        // Smart copy: detect source audio codec and check compatibility
+        let sourceAudioCodec = item.audioCodec ?? "Unknown"
+        let shouldCopyAudio = isAudioCodecCompatibleForConversion(audioCodec: sourceAudioCodec, targetFormat: targetFormat)
+        
+        if shouldCopyAudio {
             command += " -c:a copy"
-        case .mp3:
-            command += " -c:a libmp3lame -b:a 192k -q:a 2"
-        case .m4a:
-            command += " -c:a aac -b:a 192k"
-        case .flac:
-            command += " -c:a flac -compression_level 8"
-        case .wav:
-            command += " -c:a pcm_s16le"
-        case .webm:
-            command += " -c:a libopus -b:a 128k -vbr on"
+            print("✅ [convertAudio] Audio codec \(sourceAudioCodec) is compatible with \(targetFormat.rawValue), copying without re-encoding")
+        } else {
+            switch targetFormat {
+            case .original:
+                // 不应该出现在格式转换中，使用copy保持原格式
+                command += " -c:a copy"
+            case .mp3:
+                command += " -c:a libmp3lame -b:a 192k -q:a 2"
+            case .m4a:
+                command += " -c:a aac -b:a 192k"
+            case .flac:
+                command += " -c:a flac -compression_level 8"
+            case .wav:
+                command += " -c:a pcm_s16le"
+            case .webm:
+                command += " -c:a libopus -b:a 128k -vbr on"
+            }
+            print("♻️ [convertAudio] Audio codec \(sourceAudioCodec) is not compatible with \(targetFormat.rawValue), re-encoding")
         }
         
         command += " -vn \"\(outputURL.path)\""
@@ -482,6 +493,13 @@ struct AudioFormatConversionView: View {
                 }
             }
             
+            // Detect audio codec
+            if let audioCodec = await MediaItem.detectAudioCodecAsync(from: url) {
+                await MainActor.run {
+                    mediaItem.audioCodec = audioCodec
+                }
+            }
+            
             await MainActor.run {
                 mediaItem.status = .pending
             }
@@ -491,6 +509,36 @@ struct AudioFormatConversionView: View {
                 mediaItem.status = .failed
                 mediaItem.errorMessage = "Failed to load audio metadata"
             }
+        }
+    }
+    
+    private func isAudioCodecCompatibleForConversion(audioCodec: String, targetFormat: AudioFormat) -> Bool {
+        let codec = audioCodec.lowercased()
+        
+        switch targetFormat {
+        case .mp3:
+            // MP3 files contain MP3 codec
+            return codec == "mp3"
+            
+        case .m4a:
+            // M4A supports AAC
+            return codec.contains("aac")
+            
+        case .flac:
+            // FLAC files contain FLAC codec
+            return codec == "flac"
+            
+        case .wav:
+            // WAV files contain PCM
+            return codec == "pcm"
+            
+        case .webm:
+            // WebM supports Opus and Vorbis
+            return codec == "opus" || codec == "vorbis"
+            
+        case .original:
+            // Should not be used in format conversion
+            return false
         }
     }
 }
