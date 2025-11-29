@@ -1008,8 +1008,8 @@ class FormatSettings: ObservableObject {
     @Published var targetAudioFormat: AudioFormat = .mp3 {
         didSet { UserDefaults.standard.set(targetAudioFormat.rawValue, forKey: "targetAudioFormat") }
     }
-    @Published var useHEVC: Bool = true {
-        didSet { UserDefaults.standard.set(useHEVC, forKey: "useHEVC") }
+    @Published var videoCodec: VideoCodec = .h265 {
+        didSet { UserDefaults.standard.set(videoCodec.rawValue, forKey: "formatVideoCodec") }
     }
     
     @Published var preserveExif: Bool = true {
@@ -1030,9 +1030,18 @@ class FormatSettings: ObservableObject {
            audioFormat != .original {  // 格式转换不支持"原始"选项
             self.targetAudioFormat = audioFormat
         }
-        if UserDefaults.standard.object(forKey: "useHEVC") != nil {
-            self.useHEVC = UserDefaults.standard.bool(forKey: "useHEVC")
+        
+        // Migration logic for useHEVC -> videoCodec
+        if let codecRaw = UserDefaults.standard.string(forKey: "formatVideoCodec"),
+           let codec = VideoCodec(rawValue: codecRaw) {
+            self.videoCodec = codec
+        } else if UserDefaults.standard.object(forKey: "useHEVC") != nil {
+            let useHEVC = UserDefaults.standard.bool(forKey: "useHEVC")
+            self.videoCodec = useHEVC ? .h265 : .h264
+            // Remove old key after migration
+            UserDefaults.standard.removeObject(forKey: "useHEVC")
         }
+        
         if UserDefaults.standard.object(forKey: "preserveExif") != nil {
             self.preserveExif = UserDefaults.standard.bool(forKey: "preserveExif")
         }

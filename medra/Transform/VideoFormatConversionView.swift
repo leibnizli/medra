@@ -107,7 +107,7 @@ struct VideoFormatConversionView: View {
                 
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("HEVC Encoding")
+                        Text("Video Codec")
                             .font(.system(size: 15))
                             .foregroundStyle(isM4VSelected ? .secondary : .primary)
                         if isM4VSelected {
@@ -117,14 +117,18 @@ struct VideoFormatConversionView: View {
                         }
                     }
                     Spacer()
-                    Toggle("", isOn: $settings.useHEVC)
-                        .labelsHidden()
-                        .disabled(isM4VSelected)
+                    Picker("", selection: $settings.videoCodec) {
+                        Text("H.264").tag(VideoCodec.h264)
+                        Text("H.265(HEVC)").tag(VideoCodec.h265)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 220)
+                    .disabled(isM4VSelected)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .opacity(isM4VSelected ? 0.5 : (AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality) ? 1 : 0.5))
-                .disabled(isM4VSelected || !AVAssetExportSession.allExportPresets().contains(AVAssetExportPresetHEVCHighestQuality))
+                .opacity(isM4VSelected ? 0.5 : 1)
+                .disabled(isM4VSelected)
                 
                 Rectangle()
                     .fill(Color(uiColor: .separator).opacity(0.5))
@@ -175,8 +179,8 @@ struct VideoFormatConversionView: View {
             }
         }
         .onChange(of: settings.targetVideoFormat) { _, newFormat in
-            if newFormat.lowercased() == "m4v" && settings.useHEVC {
-                settings.useHEVC = false
+            if newFormat.lowercased() == "m4v" && settings.videoCodec == .h265 {
+                settings.videoCodec = .h264
             }
         }
         .onChange(of: selectedItems) { _, newItems in
@@ -518,14 +522,16 @@ struct VideoFormatConversionView: View {
         
         let requestedFormat = settings.targetVideoFormat
         let containerLowercased = requestedFormat.lowercased()
-        var targetIsHEVC = settings.useHEVC
+        var targetCodec = settings.videoCodec
         let rawCodec = item.videoCodec?.isEmpty == false ? item.videoCodec! : "Unknown"
         let codecIsKnown = !rawCodec.isEmpty && rawCodec.lowercased() != "unknown"
         
-        if containerLowercased == "m4v" && targetIsHEVC {
-            targetIsHEVC = false
+        if containerLowercased == "m4v" && targetCodec == .h265 {
+            targetCodec = .h264
             print("⚠️ [convertVideo] M4V 容器不支持 HEVC，强制使用 H.264")
         }
+        
+        let targetIsHEVC = targetCodec == .h265
         
         print("[convertVideo] 原始编码: \(rawCodec)")
         print("[convertVideo] 目标编码: \(targetIsHEVC ? "HEVC" : "H.264")")
