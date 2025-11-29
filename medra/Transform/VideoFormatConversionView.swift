@@ -26,6 +26,10 @@ struct VideoFormatConversionView: View {
         settings.targetVideoFormat.lowercased() == "m4v"
     }
     
+    private var isWebMSelected: Bool {
+        settings.targetVideoFormat.lowercased() == "webm"
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // 顶部按钮
@@ -95,9 +99,10 @@ struct VideoFormatConversionView: View {
                         Text("MP4").tag("mp4")
                         Text("MOV").tag("mov")
                         Text("M4V").tag("m4v")
+                        Text("WebM").tag("webm")
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 180)
+                    .frame(width: 220)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -109,9 +114,13 @@ struct VideoFormatConversionView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Video Codec")
                             .font(.system(size: 15))
-                            .foregroundStyle(isM4VSelected ? .secondary : .primary)
+                            .foregroundStyle((isM4VSelected || isWebMSelected) ? .secondary : .primary)
                         if isM4VSelected {
                             Text("M4V format only supports H.264")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.orange)
+                        } else if isWebMSelected {
+                            Text("WebM format uses VP9")
                                 .font(.system(size: 12))
                                 .foregroundStyle(.orange)
                         }
@@ -123,12 +132,12 @@ struct VideoFormatConversionView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 220)
-                    .disabled(isM4VSelected)
+                    .disabled(isM4VSelected || isWebMSelected)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
-                .opacity(isM4VSelected ? 0.5 : 1)
-                .disabled(isM4VSelected)
+                .opacity((isM4VSelected || isWebMSelected) ? 0.5 : 1)
+                .disabled(isM4VSelected || isWebMSelected)
                 
                 Rectangle()
                     .fill(Color(uiColor: .separator).opacity(0.5))
@@ -318,46 +327,46 @@ struct VideoFormatConversionView: View {
         for contentType in item.supportedContentTypes {
             // M4V 格式检测（优先检测，因为 m4v 也可能匹配 mpeg4Movie）
             if contentType.identifier == "public.m4v" ||
-               contentType.preferredFilenameExtension == "m4v" {
+                contentType.preferredFilenameExtension == "m4v" {
                 detectedFormat = "m4v"
                 break
             }
             // MOV 格式检测
             else if contentType.identifier == "com.apple.quicktime-movie" ||
-                    contentType.conforms(to: .quickTimeMovie) ||
-                    contentType.preferredFilenameExtension == "mov" {
+                        contentType.conforms(to: .quickTimeMovie) ||
+                        contentType.preferredFilenameExtension == "mov" {
                 detectedFormat = "mov"
                 break
             }
             // MP4 格式检测
             else if contentType.identifier == "public.mpeg-4" ||
-                    contentType.conforms(to: .mpeg4Movie) ||
-                    contentType.preferredFilenameExtension == "mp4" ||
-                    contentType.identifier == "public.mp4" {
+                        contentType.conforms(to: .mpeg4Movie) ||
+                        contentType.preferredFilenameExtension == "mp4" ||
+                        contentType.identifier == "public.mp4" {
                 detectedFormat = "mp4"
                 break
             }
             // AVI 格式检测
             else if contentType.identifier == "public.avi" ||
-                    contentType.preferredFilenameExtension == "avi" {
+                        contentType.preferredFilenameExtension == "avi" {
                 detectedFormat = "avi"
                 break
             }
             // MKV 格式检测
             else if contentType.identifier == "org.matroska.mkv" ||
-                    contentType.preferredFilenameExtension == "mkv" {
+                        contentType.preferredFilenameExtension == "mkv" {
                 detectedFormat = "mkv"
                 break
             }
             // WebM 格式检测
             else if contentType.identifier == "org.webmproject.webm" ||
-                    contentType.preferredFilenameExtension == "webm" {
+                        contentType.preferredFilenameExtension == "webm" {
                 detectedFormat = "webm"
                 break
             }
             // 通用视频格式检测
             else if contentType.conforms(to: .movie) ||
-                    contentType.conforms(to: .video) {
+                        contentType.conforms(to: .video) {
                 // 尝试从 preferredFilenameExtension 获取具体格式
                 if let ext = contentType.preferredFilenameExtension?.lowercased(),
                    ["mov", "mp4", "avi", "mkv", "webm", "m4v"].contains(ext) {
@@ -531,10 +540,16 @@ struct VideoFormatConversionView: View {
             print("⚠️ [convertVideo] M4V 容器不支持 HEVC，强制使用 H.264")
         }
         
+        let targetIsWebM = containerLowercased == "webm"
+        if targetIsWebM {
+            // WebM uses VP9, so we don't use the H.264/HEVC codec selection
+            print("ℹ️ [convertVideo] Target is WebM, using VP9 codec")
+        }
+        
         let targetIsHEVC = targetCodec == .h265
         
         print("[convertVideo] 原始编码: \(rawCodec)")
-        print("[convertVideo] 目标编码: \(targetIsHEVC ? "HEVC" : "H.264")")
+        print("[convertVideo] 目标编码: \(targetIsWebM ? "VP9" : (targetIsHEVC ? "HEVC" : "H.264"))")
         
         let outputURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("converted_\(UUID().uuidString)")
@@ -555,7 +570,14 @@ struct VideoFormatConversionView: View {
                 transcodeReasons.append("Converting HEVC source to H.264 as requested.")
             }
         } else if targetIsHEVC {
+        } else if targetIsHEVC {
             transcodeReasons.append("Transcoding to HEVC as requested.")
+        }
+        
+        if targetIsWebM {
+            if !codecTraits(for: rawCodec).isVP9 {
+                transcodeReasons.append("WebM output requires VP9 video.")
+            }
         }
         
         if containerLowercased == "m4v" {
@@ -578,7 +600,8 @@ struct VideoFormatConversionView: View {
             }
         }
         
-        let targetCodecLabel = targetIsHEVC ? "HEVC" : "H.264"
+        
+        let targetCodecLabel = targetIsWebM ? "VP9" : (targetIsHEVC ? "HEVC" : "H.264")
         await MainActor.run {
             let reasonSummary = transcodeReasons.joined(separator: " ")
             if reasonSummary.isEmpty {
@@ -596,30 +619,34 @@ struct VideoFormatConversionView: View {
                                    targetFormat: requestedFormat,
                                    originalCodec: rawCodec)
     }
-
-    private func codecTraits(for codec: String) -> (isH264: Bool, isHEVC: Bool) {
+    
+    private func codecTraits(for codec: String) -> (isH264: Bool, isHEVC: Bool, isVP9: Bool) {
         let normalized = codec.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let isH264 = normalized == "h.264" || normalized == "h264" || normalized.contains("avc") || normalized.contains("mpeg-4 avc")
         let isHEVC = normalized == "hevc" || normalized == "h.265" || normalized == "h265" || normalized.contains("hevc") || normalized.contains("hvc") || normalized.contains("hev1") || normalized.contains("hvc1") || normalized.contains("dvhe") || normalized.contains("dvh1")
-        return (isH264, isHEVC)
+        let isVP9 = normalized == "vp9" || normalized.contains("vp9")
+        return (isH264, isHEVC, isVP9)
     }
-
+    
     private func codecSupportsPassthrough(codec: String, targetFormat: String) -> Bool {
         let traits = codecTraits(for: codec)
         switch targetFormat.lowercased() {
         case "mp4", "mov":
             return traits.isH264 || traits.isHEVC
+            
         case "m4v":
             return traits.isH264
+        case "webm":
+            return traits.isVP9
         default:
             return true
         }
     }
-
+    
     private func performRemux(for item: MediaItem,
-                               sourceURL: URL,
-                               outputURL: URL,
-                               targetFormat: String) async -> Bool {
+                              sourceURL: URL,
+                              outputURL: URL,
+                              targetFormat: String) async -> Bool {
         await withCheckedContinuation { continuation in
             FFmpegVideoCompressor.remux(inputURL: sourceURL, outputURL: outputURL) { result in
                 Task { @MainActor in
@@ -661,14 +688,14 @@ struct VideoFormatConversionView: View {
             }
         }
     }
-
+    
     private func performTranscode(for item: MediaItem,
-                                   asset: AVURLAsset,
-                                   sourceURL: URL,
-                                   outputURL: URL,
-                                   targetIsHEVC: Bool,
-                                   targetFormat: String,
-                                   originalCodec: String) async -> Bool {
+                                  asset: AVURLAsset,
+                                  sourceURL: URL,
+                                  outputURL: URL,
+                                  targetIsHEVC: Bool,
+                                  targetFormat: String,
+                                  originalCodec: String) async -> Bool {
         print("🎬 [convertVideo] 需要重新编码，使用 FFmpeg")
         
         var originalBitrate: Int = 0
@@ -685,12 +712,18 @@ struct VideoFormatConversionView: View {
             print("[convertVideo] 使用默认比特率: \(originalBitrate) bps")
         }
         
-        let codec = targetIsHEVC ? "hevc_videotoolbox" : "h264_videotoolbox"
+        let codec = targetFormat.lowercased() == "webm" ? "libvpx-vp9" : (targetIsHEVC ? "hevc_videotoolbox" : "h264_videotoolbox")
         let bitrateKbps = max(originalBitrate / 1000, 1)
         var command = "-i \"\(sourceURL.path)\""
         command += " -c:v \(codec)"
         command += " -b:v \(bitrateKbps)k"
-        command += " -c:a aac -b:a 128k"
+        
+        if targetFormat.lowercased() == "webm" {
+            command += " -c:a libopus -b:a 128k"
+        } else {
+            command += " -c:a aac -b:a 128k"
+        }
+        
         command += " -pix_fmt yuv420p"
         if targetIsHEVC {
             command += " -tag:v hvc1"
@@ -742,7 +775,7 @@ struct VideoFormatConversionView: View {
                         item.progress = 1.0
                         let normalizedSource = originalCodec.trimmingCharacters(in: .whitespacesAndNewlines)
                         let sourceDescription = normalizedSource.isEmpty || normalizedSource.lowercased() == "unknown" ? nil : normalizedSource
-                        let targetCodecLabel = targetIsHEVC ? "HEVC" : "H.264"
+                        let targetCodecLabel = targetFormat.lowercased() == "webm" ? "VP9" : (targetIsHEVC ? "HEVC" : "H.264")
                         let successMessage = {
                             if let sourceDescription {
                                 return "Transcoded to \(targetCodecLabel) from \(sourceDescription)."
@@ -851,14 +884,14 @@ struct VideoFormatConversionView: View {
         } catch {
             print("Failed to load video track info: \(error)")
         }
-
+        
         let needsFallback = {
             let durationValid = (mediaItem.duration ?? 0) > 0
             let frameRateValid = (mediaItem.frameRate ?? 0) > 0
             let resolutionValid = mediaItem.originalResolution != nil
             return !durationValid || !frameRateValid || !resolutionValid
         }()
-
+        
         var ffprobeInfo: FFprobeVideoInfo?
         if needsFallback {
             ffprobeInfo = await loadVideoMetadataFallback(for: mediaItem, url: url)
@@ -896,7 +929,7 @@ struct VideoFormatConversionView: View {
         // 优化：设置更快的缩略图生成选项
         generator.requestedTimeToleranceBefore = CMTime(seconds: 1, preferredTimescale: 600)
         generator.requestedTimeToleranceAfter = CMTime(seconds: 1, preferredTimescale: 600)
-
+        
         let durationSeconds = CMTimeGetSeconds(asset.duration)
         let candidateSeconds: [Double] = {
             var seconds: [Double] = []
@@ -921,7 +954,7 @@ struct VideoFormatConversionView: View {
                 print("⚠️ [Format Thumbnail] Failed at \(second)s: \(error.localizedDescription)")
             }
         }
-
+        
         if let fallbackImage = await generateVideoThumbnailViaFFmpeg(for: item, url: url, duration: durationSeconds) {
             await MainActor.run {
                 item.thumbnailImage = fallbackImage
@@ -933,7 +966,7 @@ struct VideoFormatConversionView: View {
             item.thumbnailImage = UIImage(systemName: "video.fill")
         }
     }
-
+    
     private func generateVideoThumbnailViaFFmpeg(for item: MediaItem, url: URL, duration: Double) async -> UIImage? {
         let capturePoint: Double
         if duration.isFinite && duration > 0.0 {
@@ -941,7 +974,7 @@ struct VideoFormatConversionView: View {
         } else {
             capturePoint = 0.5
         }
-
+        
         return await withCheckedContinuation { continuation in
             FFmpegVideoCompressor.extractThumbnail(from: url, at: capturePoint) { result in
                 switch result {
@@ -961,7 +994,7 @@ struct VideoFormatConversionView: View {
             }
         }
     }
-
+    
     private func loadVideoMetadataFallback(for mediaItem: MediaItem, url: URL) async -> FFprobeVideoInfo? {
         guard let info = await fetchFFprobeVideoInfo(url: url) else { return nil }
         await MainActor.run {
@@ -977,7 +1010,7 @@ struct VideoFormatConversionView: View {
         }
         return info
     }
-
+    
     private struct FFprobeVideoInfo {
         let width: Int?
         let height: Int?
@@ -985,7 +1018,7 @@ struct VideoFormatConversionView: View {
         let frameRate: Double?
         let codec: String?
     }
-
+    
     private func fetchFFprobeVideoInfo(url: URL) async -> FFprobeVideoInfo? {
         return await withCheckedContinuation { (continuation: CheckedContinuation<FFprobeVideoInfo?, Never>) in
             FFprobeKit.getMediaInformationAsync(url.path) { session in
@@ -993,17 +1026,17 @@ struct VideoFormatConversionView: View {
                     continuation.resume(returning: nil)
                     return
                 }
-
+                
                 let duration = extractDuration(from: info)
                 var width: Int?
                 var height: Int?
                 var fps: Double?
                 var codec: String?
-
+                
                 if let streams = info.getStreams() {
                     for case let stream as StreamInformation in streams {
                         guard (stream.getType()?.lowercased() ?? "") == "video" else { continue }
-
+                        
                         if width == nil {
                             if let value = stream.getWidth()?.intValue {
                                 width = value
@@ -1011,7 +1044,7 @@ struct VideoFormatConversionView: View {
                                 width = value
                             }
                         }
-
+                        
                         if height == nil {
                             if let value = stream.getHeight()?.intValue {
                                 height = value
@@ -1019,7 +1052,7 @@ struct VideoFormatConversionView: View {
                                 height = value
                             }
                         }
-
+                        
                         if fps == nil {
                             let frameRateCandidates: [String?] = [
                                 stream.getAverageFrameRate(),
@@ -1036,7 +1069,7 @@ struct VideoFormatConversionView: View {
                                 }
                             }
                         }
-
+                        
                         if codec == nil {
                             if let codecLong = stream.getCodecLong(), !codecLong.isEmpty {
                                 codec = codecLong
@@ -1044,13 +1077,13 @@ struct VideoFormatConversionView: View {
                                 codec = codecShort
                             }
                         }
-
+                        
                         if width != nil && height != nil && fps != nil && codec != nil {
                             break
                         }
                     }
                 }
-
+                
                 continuation.resume(returning: FFprobeVideoInfo(
                     width: width,
                     height: height,
@@ -1061,18 +1094,18 @@ struct VideoFormatConversionView: View {
             }
         }
     }
-
+    
     private func extractDuration(from info: MediaInformation) -> Double? {
         var candidates: [String?] = [
             info.getDuration(),
             info.getStringProperty(MediaKeyDuration),
             info.getStringFormatProperty(MediaKeyDuration)
         ]
-
+        
         if let formatProperties = info.getFormatProperties() as? [String: Any] {
             candidates.append(formatProperties[MediaKeyDuration] as? String)
         }
-
+        
         if let allProperties = info.getAllProperties() as? [String: Any] {
             if let formatDict = allProperties[MediaKeyFormat] as? [String: Any] {
                 candidates.append(formatDict[MediaKeyDuration] as? String)
@@ -1084,7 +1117,7 @@ struct VideoFormatConversionView: View {
                 candidates.append(formatDict["duration"] as? String)
             }
         }
-
+        
         for candidate in candidates {
             if let seconds = parseDuration(candidate) {
                 return seconds
@@ -1092,7 +1125,7 @@ struct VideoFormatConversionView: View {
         }
         return nil
     }
-
+    
     private func parseFrameRate(_ value: String) -> Double? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.uppercased() != "N/A" else { return nil }
@@ -1108,12 +1141,12 @@ struct VideoFormatConversionView: View {
         }
         return Double(trimmed)
     }
-
+    
     private func parseDuration(_ value: String?) -> Double? {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed.uppercased() != "N/A" else { return nil }
-
+        
         if trimmed.contains(":"), !trimmed.contains(" ") {
             let parts = trimmed.split(separator: ":")
             guard !parts.isEmpty else { return nil }
@@ -1124,7 +1157,7 @@ struct VideoFormatConversionView: View {
             }
             return total
         }
-
+        
         return Double(trimmed)
     }
 }
