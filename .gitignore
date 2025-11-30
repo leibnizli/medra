@@ -130,4 +130,5 @@ Temporary Items
 
 *.md
 !README.md
+!README_CN.md
 

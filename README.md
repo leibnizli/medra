@@ -9,7 +9,7 @@ A clean and efficient iOS app for compressing images, videos, and audio files. E
 - Support batch selection of images, videos, and audio (up to 20 files)
 - Support multiple media formats
   - Images: JPEG/PNG/HEIC/WebP/AVIF/GIF
-  - Videos: MOV/MP4/M4V
+  - Videos: MOV/MP4/M4V/WebM
   - Audio: MP3/M4A/AAC/WAV/FLAC/OGG
 - Real-time processing progress display
 - Intelligent quality protection mechanism
@@ -38,15 +38,17 @@ A clean and efficient iOS app for compressing images, videos, and audio files. E
 
 #### Video Format Conversion
 
-- Batch convert video formats: MP4 ↔ MOV ↔ M4V
+- Batch convert video formats: MP4 ↔ MOV ↔ M4V ↔ WebM
 - Lossless conversion (where possible), maintaining original quality
+- **Smart Audio Copy**: Automatically copies audio stream when compatible to avoid re-encoding
+- **Smart Encoding**: Automatically uses hardware acceleration (VideoToolbox) for H.264/HEVC or VP9 for WebM when transcoding is necessary
+- **Bitrate Preservation**: Maintains original video bitrate during transcoding to minimize quality loss
 
 #### Video to Animation
 
 - Convert video to animated WebP, AVIF, or GIF
-- Customizable frame rate (1-30 fps)
-- Loop count control
-- Quality adjustment
+- **Auto-optimized**: Uses optimized presets (15 fps, high quality) for best balance of size and quality
+- **High Efficiency**: Direct AVIF conversion using libaom-av1 for superior compression
 
 #### Extract Audio
 
@@ -81,14 +83,6 @@ A clean and efficient iOS app for compressing images, videos, and audio files. E
 #### Audio Compression
 
 - Support MP3/M4A/AAC/WAV/FLAC/OGG input
-- Multiple output format options:
-  - **Original**: preserve input file format (default)
-  - MP3 (libmp3lame)
-  - AAC
-  - M4A
-  - FLAC (lossless)
-  - WAV (uncompressed)
-  - OGG
 - 8 bitrate options (32-320 kbps)
 - 7 sample rate options (8-48 kHz)
 - Channel selection (mono/stereo)
@@ -97,7 +91,7 @@ A clean and efficient iOS app for compressing images, videos, and audio files. E
 
 #### Audio Format Conversion
 
-- Batch convert audio formats: MP3 ↔ M4A ↔ FLAC ↔ WAV
+- Batch convert audio formats: MP3 ↔ M4A ↔ FLAC ↔ WAV ↔ WebM
 - Lossless conversion (where possible)
 
 #### Audio to Text
@@ -109,9 +103,10 @@ A clean and efficient iOS app for compressing images, videos, and audio files. E
 #### Text to Speech
 
 - Convert text to audio file
-- Support multiple languages and voices
+- Support multiple languages and voices (optimized selection)
 - Adjustable pitch and rate
-- Save as audio file
+- Import text from file
+- Save to Files / iCloud (WAV format) with progress indicator
 
 ## Contact
 
