@@ -40,7 +40,7 @@ struct VideoMainView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Convert Format")
                                     .font(.headline)
-                                Text("MP4, MOV, M4V")
+                                Text("MP4, MOV, M4V, WebM")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }

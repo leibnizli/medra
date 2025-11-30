@@ -45,7 +45,7 @@ struct AudioMainView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Convert Format")
                                     .font(.headline)
-                                Text("MP3, M4A, FLAC, WAV")
+                                Text("MP3, M4A, FLAC, WAV, WebM")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
