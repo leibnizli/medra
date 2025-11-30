@@ -41,7 +41,7 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		8488EE6F2ED0DDCB00D18FBF /* Exceptions for "medra" folder in "Embed Frameworks" phase from "medra" target */ = {
+		8497D51D2EDC9D7900356303 /* Exceptions for "medra" folder in "Embed Frameworks" phase from "medra" target */ = {
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
 			attributesByRelativePath = {
 				ffmpeg/ffmpegkit.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
@@ -72,7 +72,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				841409262ECE19DA00437DA1 /* Exceptions for "medra" folder in "medra" target */,
-				8488EE6F2ED0DDCB00D18FBF /* Exceptions for "medra" folder in "Embed Frameworks" phase from "medra" target */,
+				8497D51D2EDC9D7900356303 /* Exceptions for "medra" folder in "Embed Frameworks" phase from "medra" target */,
 			);
 			path = medra;
 			sourceTree = "<group>";
@@ -384,7 +384,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 15;
 				DEVELOPMENT_TEAM = XTWM4R2294;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_RESOURCE_ACCESS_CAMERA = YES;
+				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -411,9 +416,11 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/medra/Libraries",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 14;
 				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.arayofsunshine.hummingbird.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -465,6 +472,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/medra/Libraries",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 14;
 				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.arayofsunshine.hummingbird.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
