@@ -89,7 +89,7 @@ struct CompressionViewAudio: View {
             } else {
                 List {
                     ForEach(mediaItems) { item in
-                        CompressionItemRow(item: item)
+                        CompressionItemRow(item: item, settings: settings)
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                             .listRowSeparator(.visible)
                     }

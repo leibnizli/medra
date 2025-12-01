@@ -11,6 +11,7 @@ import AVFoundation
 
 struct CompressionItemRow: View {
     @ObservedObject var item: MediaItem
+    var settings: CompressionSettings? = nil
     @StateObject private var audioPlayer = AudioPlayerManager.shared
     @State private var showingToast = false
     
@@ -342,25 +343,33 @@ struct CompressionItemRow: View {
                             statusBadge
                         }
                         
+                        // 预压缩状态下的格式转换提示 (WAV/FLAC -> MP3)
+                        if item.isAudio {
+                            if let settings = settings, settings.audioFormat == .original {
+                                let ext = item.fileExtension.uppercased()
+                                if ext == "WAV" || ext == "FLAC" {
+                                    if item.status != .completed {
+                                        Text("Will convert to MP3 for compression")
+                                            .font(.caption2)
+                                            .foregroundStyle(.orange)
+                                            .padding(.top, 1)
+                                    }
+                                    if item.status == .completed {
+                                        Text("Converted to MP3 for compression")
+                                            .font(.caption2)
+                                            .foregroundStyle(.green)
+                                            .padding(.top, 1)
+                                    }
+                                }
+                            }
+                        }
+                        
                         //MARK: 文件大小和压缩信息
                         if item.status == .completed {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Size: \(item.formatBytes(item.originalSize)) → \(item.formatBytes(item.compressedSize))")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                
-                                // 显示格式转换提示（针对 WAV/FLAC -> MP3）
-                                if item.isAudio {
-                                    let originalExt = item.fileExtension.uppercased()
-                                    let outputExt = item.outputAudioFormat?.rawValue.uppercased() ?? ""
-                                    
-                                    if (originalExt == "WAV" || originalExt == "FLAC") && outputExt == "MP3" {
-                                        Text("Converted to MP3 for compression")
-                                            .font(.caption2)
-                                            .foregroundStyle(.orange)
-                                            .padding(.top, 1)
-                                    }
-                                }
                                 
                                 // 显示分辨率变化（仅图片和视频）
                                 if !item.isAudio {
