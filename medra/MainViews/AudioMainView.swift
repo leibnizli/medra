@@ -52,7 +52,36 @@ struct AudioMainView: View {
                         }
                         .padding(.vertical, 8)
                     }
-                    
+                } header: {
+                    Text("Basic Tools")
+                }
+                
+                Section {
+                    Button(action: { showTrimView = true }) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "scissors")
+                                .font(.system(size: 30))
+                                .foregroundStyle(.pink)
+                                .frame(width: 40)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Trim Audio")
+                                    .font(.headline)
+                                Text("Split, delete, merge audio clips")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    .foregroundStyle(.primary)
+
                     NavigationLink(destination: AudioToTextView()) {
                         HStack(spacing: 16) {
                             Image(systemName: "waveform.circle")
@@ -88,34 +117,8 @@ struct AudioMainView: View {
                         }
                         .padding(.vertical, 8)
                     }
-                    
-                    Button(action: { showTrimView = true }) {
-                        HStack(spacing: 16) {
-                            Image(systemName: "scissors")
-                                .font(.system(size: 30))
-                                .foregroundStyle(.pink)
-                                .frame(width: 40)
-                            
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Trim Audio")
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                Text("Cut, split, merge audio clips")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 8)
-                    }
-
                 } header: {
-                    Text("Audio Tools")
+                    Text("Advanced Tools")
                 }
             }
             .navigationTitle("Audio")
