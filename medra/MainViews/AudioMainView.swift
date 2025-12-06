@@ -89,26 +89,31 @@ struct AudioMainView: View {
                         .padding(.vertical, 8)
                     }
                     
-//                    Button(action: {
-//                        showFileImporter = true
-//                    }) {
-//                        HStack(spacing: 16) {
-//                            Image(systemName: "scissors")
-//                                .font(.system(size: 30))
-//                                .foregroundStyle(.orange)
-//                                .frame(width: 40)
-//                            
-//                            VStack(alignment: .leading, spacing: 4) {
-//                                Text("Trim Audio")
-//                                    .font(.headline)
-//                                    .foregroundColor(.primary)
-//                                Text("Cut and save audio clips")
-//                                    .font(.caption)
-//                                    .foregroundStyle(.secondary)
-//                            }
-//                        }
-//                        .padding(.vertical, 8)
-//                    }
+                    Button(action: { showTrimView = true }) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "scissors")
+                                .font(.system(size: 30))
+                                .foregroundStyle(.pink)
+                                .frame(width: 40)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Trim Audio")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text("Cut, split, merge audio clips")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 8)
+                    }
+
                 } header: {
                     Text("Audio Tools")
                 }
@@ -133,13 +138,8 @@ struct AudioMainView: View {
                     print("File selection error: \(error.localizedDescription)")
                 }
             }
-            .fullScreenCover(isPresented: $showTrimView, onDismiss: {
-                selectedAudioURL?.stopAccessingSecurityScopedResource()
-                selectedAudioURL = nil
-            }) {
-                if let url = selectedAudioURL {
-                    //AudioTrimView(audioURL: url)
-                }
+            .fullScreenCover(isPresented: $showTrimView) {
+                AudioTrimView()
             }
         }
     }
